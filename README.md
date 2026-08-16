@@ -3,15 +3,16 @@
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Task](https://img.shields.io/badge/Task-Multimodal%20Image--Tabular%20Learning-orange)
-![Model](https://img.shields.io/badge/Model-iStructTab-blueviolet)
-![Method](https://img.shields.io/badge/Method-Structured%20Feature%20Sequencing-informational)
-![Algorithm](https://img.shields.io/badge/Algorithm-GEDS-purple)
-![Architecture](https://img.shields.io/badge/Architecture-OEMT%20%2B%20Memory%20Tokens-critical)
-![Optimization](https://img.shields.io/badge/Formulation-Column%20Permutation%20Problem-teal)
+![Model](https://img.shields.io/badge/Model-iSyncTab-blueviolet)
+![Method](https://img.shields.io/badge/Method-Neural%20Synchrony--guided%20Feature%20Sequencing-informational)
+![Algorithm](https://img.shields.io/badge/Algorithm-NS--PFS-purple)
+![Architecture](https://img.shields.io/badge/Architecture-OMT%20%2B%20Memory%20Tokens-critical)
+![Backbone](https://img.shields.io/badge/Backbone-Linformer-teal)
+![Formulation](https://img.shields.io/badge/Formulation-Column%20Permutation%20Problem-9cf)
 ![Domain](https://img.shields.io/badge/Domain-Image%20%2B%20Tabular%20Data-9cf)
-[![Conference](https://img.shields.io/badge/Conference-ICPR%202026-blue)](https://icpr2026.org/)
+[![Conference](https://img.shields.io/badge/Conference-ECCV%202026-blue)](https://doi.org/10.1007/978-3-032-37035-8)
 ![Status](https://img.shields.io/badge/Status-Accepted-brightgreen)
-![PyPI](https://img.shields.io/badge/PyPI-istructab-blue)
+[![Paper](https://img.shields.io/badge/Paper-Published-success)](https://doi.org/10.1007/978-3-032-37035-8)
 
 <p align="center">
   <img src="iSyncTab_Architecture.png" alt="iSyncTab Architecture" width="1000">
