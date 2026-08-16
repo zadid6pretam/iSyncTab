@@ -10,7 +10,7 @@
 ![Backbone](https://img.shields.io/badge/Backbone-Linformer-teal)
 ![Formulation](https://img.shields.io/badge/Formulation-Column%20Permutation%20Problem-9cf)
 ![Domain](https://img.shields.io/badge/Domain-Image%20%2B%20Tabular%20Data-9cf)
-![Extension](https://img.shields.io/badge/Domain-Audio%20%2B%20Video%20Data-9cf)
+![Extension](https://img.shields.io/badge/Extension-Audio%20%2B%20Video-9cf)
 [![Conference](https://img.shields.io/badge/Conference-ECCV%202026-blue)](https://eccv.ecva.net/)
 ![Status](https://img.shields.io/badge/Status-Accepted-brightgreen)
 [![Paper](https://img.shields.io/badge/Paper-Published-success)](https://doi.org/10.1007/978-3-032-37035-8)
