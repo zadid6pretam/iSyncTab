@@ -19,44 +19,42 @@
   <img src="iSyncTab_Architecture.png" alt="iSyncTab Architecture" width="1000">
 </p>
 
-iStructTab is a structured feature sequencing framework for **multimodal image-tabular learning**. It introduces **Graph-Enhanced Descriptor Sequencing (GEDS)** to derive an effective feature order from fused image and tabular representations, framing the problem through the lens of the **Column Permutation Problem (CPP)**. Instead of treating fused descriptors as an unordered vector, iStructTab explicitly organizes multimodal features into a structured sequence that reduces feature dispersion and improves cross-modal alignment. The ordered representation is processed by an **Order-Aware Efficient Transformer with Memory Augmentation (OEMT)**, which uses memory tokens and a sequencing-aware loss to preserve the learned feature order during prediction. This design makes iStructTab suitable for heterogeneous multimodal tasks involving images and tabular metadata, including medical imaging, remote sensing, environmental modeling, and other image-tabular prediction settings. Across diverse multimodal benchmarks, iStructTab improves classification accuracy, robustness, calibration, and efficiency compared with classical tabular models, image-only models, and recent multimodal learning baselines.
+iSyncTab is a neural synchrony-guided feature sequencing framework for **multimodal image-tabular learning**. It introduces **Neural Synchrony-guided Paired Feature Sequencing (NS-PFS)** to derive a coherent cross-modal feature order from image and tabular representations, framing feature sequencing through the lens of the **Column Permutation Problem (CPP)**. Rather than treating fused multimodal features as an arbitrarily ordered representation, iSyncTab clusters modality-specific features and aligns image and tabular feature clusters using a synchrony matrix that combines **energy coherence and centroid similarity**, followed by **Hungarian matching** to obtain paired cross-modal clusters. NS-PFS then constructs a synchronized feature sequence that promotes structural coherence and reduces feature dispersion across modalities. The ordered representation is processed by an **Order-aware Memory-augmented Transformer (OMT)** with a Linformer backbone, learnable memory tokens, and an auxiliary sequencing-consistency loss that encourages the model to preserve the learned feature order during prediction. This design makes iSyncTab suitable for heterogeneous image-tabular prediction tasks, including medical imaging and visual classification with structured metadata. Across diverse multimodal benchmarks, iSyncTab demonstrates strong classification performance, improved training stability, data efficiency, and a favorable accuracy-computational cost trade-off compared with tabular-only, image-only, and recent multimodal learning baselines. The generality of the proposed mechanism was further evaluated on **audio-video multimodal data**, demonstrating its applicability beyond image-tabular learning.
 
 ## Overview
 
-**iStructTab** is a multimodal architecture for problems where each example has:
+**iSyncTab** is a multimodal architecture for problems where each example has:
 
 - **Tabular metadata** (numeric + categorical + optional text-like fields), and  
 - **Image data** (e.g., medical images, natural images).
-- iStructTab itself is **not specific** to HAM10000: any dataset with tabular + image inputs can be used by providing a matching PyTorch `Dataset` / `DataLoader`.
+- iSyncTab itself is **not specific** to HAM10000: any dataset with tabular + image inputs can be used by providing a matching PyTorch `Dataset` / `DataLoader`.
 
-The key idea is to treat **both tabular features and image features as tokens**, then use **raph-Enhanced
-Descriptor Sequencing (GEDS** to learn a global permutation over all tokens before feeding them to a transformer-like encoder (linformer).
+The key idea is to treat **both tabular features and image features as tokens**, then use **Neural Synchrony-guided Paired Feature Sequencing (NS-PFS)** to learn a synchronized global permutation across modalities before feeding the ordered token sequence into the **Order-aware Memory-augmented Transformer (OMT)** with a **Linformer** backbone.
 
 ## Citation
 
-Al Zadid Sultan Bin Habib, Md Younus Ahamed, Prashnna Gyawali, Gianfranco Doretto, and Donald A. Adjeroh. **“iStructTab: Structured Feature Sequencing for Multimodal Learning of Image and Tabular Data.”** In *Proceedings of the 28th International Conference on Pattern Recognition (ICPR)*, Lyon, France, 2026.
+Al Zadid Sultan Bin Habib, Md Younus Ahamed, Prashnna Kumar Gyawali, Gianfranco Doretto, and Donald A. Adjeroh. **“iSyncTab: Learning Cross-Modal Feature Sequencing for Image-Tabular Data via Neural Synchrony.”** In *Proceedings of the European Conference on Computer Vision (ECCV)*, 2026. https://doi.org/10.1007/978-3-032-37035-8
 
 BibTeX:
 ```bibtex
-@inproceedings{habib2026istructtab,
-  title     = {iStructTab: Structured Feature Sequencing for Multimodal Learning of Image and Tabular Data},
-  author    = {Habib, Al Zadid Sultan Bin and Ahamed, Md Younus and Gyawali, Prashnna and Doretto, Gianfranco and Adjeroh, Donald A.},
-  booktitle = {Proceedings of the 28th International Conference on Pattern Recognition},
+@inproceedings{habib2026isynctab,
+  title     = {iSyncTab: Learning Cross-Modal Feature Sequencing for Image-Tabular Data via Neural Synchrony},
+  author    = {Habib, Al Zadid Sultan Bin and Ahamed, Md Younus and Gyawali, Prashnna Kumar and Doretto, Gianfranco and Adjeroh, Donald A.},
+  booktitle = {Proceedings of the European Conference on Computer Vision},
   year      = {2026},
-  address   = {Lyon, France}
+  doi       = {10.1007/978-3-032-37035-8}
 }
 ```
-- Paper: https://link.springer.com/chapter/10.1007/978-3-032-31404-8_43 
-- arXiv: https://arxiv.org/abs/2608.04348
+- Paper: https://link.springer.com/chapter/10.1007/978-3-032-37035-8 
 
 ## Files and Repository Structure
 
 ### Python package: `istructtab/`
 
-This folder contains the core iStructTab implementation:
+This folder contains the core iSyncTab implementation:
 
 - `__init__.py` - Package initializer and high-level API exports.
-- `iStructTab.py` - Main iStructTab implementation, including:
+- `iSyncTab.py` - Main iSyncTab implementation, including:
   - `set_seed` for reproducibility.
   - `ImageFeatureEncoder` for ResNet-based image feature extraction.
   - `TabularTokenEncoder` and `TabularEncoder` for numeric, categorical, and text-style tabular inputs.
