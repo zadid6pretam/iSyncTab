@@ -15,11 +15,7 @@
 ![Status](https://img.shields.io/badge/Status-Accepted-brightgreen)
 [![Paper](https://img.shields.io/badge/Paper-Published-success)](https://doi.org/10.1007/978-3-032-37035-8)
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/zadid6pretam/iSyncTab/main/iSyncTab_Architecture.png"
-       alt="iSyncTab Architecture"
-       width="1000">
-</p>
+![iSyncTab Architecture](https://raw.githubusercontent.com/zadid6pretam/iSyncTab/main/iSyncTab_Architecture.png)
 
 iSyncTab is a neural synchrony-guided feature sequencing framework for **multimodal image-tabular learning**. It introduces **Neural Synchrony-guided Paired Feature Sequencing (NS-PFS)** to derive a coherent cross-modal feature order from image and tabular representations, framing feature sequencing through the lens of the **Column Permutation Problem (CPP)**. Rather than treating fused multimodal features as an arbitrarily ordered representation, iSyncTab clusters modality-specific features and aligns image and tabular feature clusters using a synchrony matrix that combines **energy coherence and centroid similarity**, followed by **Hungarian matching** to obtain paired cross-modal clusters. NS-PFS then constructs a synchronized feature sequence that promotes structural coherence and reduces feature dispersion across modalities. The ordered representation is processed by an **Order-aware Memory-augmented Transformer (OMT)** with a Linformer backbone, learnable memory tokens, and an auxiliary sequencing-consistency loss that encourages the model to preserve the learned feature order during prediction. This design makes iSyncTab suitable for heterogeneous image-tabular prediction tasks, including medical imaging and visual classification with structured metadata. Across diverse multimodal benchmarks, iSyncTab demonstrates strong classification performance, improved training stability, data efficiency, and a favorable accuracy-computational cost trade-off compared with tabular-only, image-only, and recent multimodal learning baselines. The generality of the proposed mechanism was further evaluated on **audio-video multimodal data**, demonstrating its applicability beyond image-tabular learning.
 
