@@ -224,42 +224,45 @@ iSyncTab/
 
 ## Installation
 
-You can install **iStructTab** in several ways depending on your workflow.
+You can install **iSyncTab** in several ways depending on your workflow.
 
 ---
 
 ### Option 1: Clone the Repository (Recommended for Development)
 
 ```bash
-git clone https://github.com/zadid6pretam/iStructTab.git
-cd iStructTab
+git clone https://github.com/zadid6pretam/iSyncTab.git
+cd iSyncTab
 pip install -r requirements.txt
 pip install -e .
 ```
+- This is the recommended option if you want to modify the source code, run the provided experiment notebooks, or develop additional iSyncTab extensions.
 
 ### Option 2: Install Directly from GitHub (No Cloning Needed)
 
 ```bash
-pip install "git+https://github.com/zadid6pretam/iStructTab.git"
+pip install "git+https://github.com/zadid6pretam/iSyncTab.git"
 ```
+- This installs the latest version of iSyncTab directly from the GitHub repository.
 
 ### Option 3: Use a Virtual Environment
 
 ```bash
-python -m venv istructtab-env
-source istructtab-env/bin/activate  # On Windows: istructtab-env\Scripts\activate
+python -m venv isynctab-env
+source isynctab-env/bin/activate  # On Windows: isynctab-env\Scripts\activate
 
-git clone https://github.com/zadid6pretam/iStructTab.git
-cd iStructTab
+git clone https://github.com/zadid6pretam/iSyncTab.git
+cd iSyncTab
 pip install -r requirements.txt
 pip install -e .
 ```
+- Using a virtual environment is recommended to keep iSyncTab and its dependencies isolated from other Python projects.
 
 ### Option 4: Local Install Without Editable Mode
 
 ```bash
-git clone https://github.com/zadid6pretam/iStructTab.git
-cd iStructTab
+git clone https://github.com/zadid6pretam/iSyncTab.git
+cd iSyncTab
 pip install -r requirements.txt
 pip install .
 ```
@@ -267,8 +270,19 @@ pip install .
 ### Option 5: Install from PyPI
 
 ```bash
-pip install istructtab
+pip install isynctab
 ```
+- After installation, the main image-tabular and audio-video models can be imported as:
+
+```python
+from isynctab import iSyncTab, iSyncTab_AV
+```
+- The audio-video model can also be imported using its alias:
+
+```python
+from isynctab import iSyncTabAV
+```
+
 ## Example Usage
 
 Below is a minimal example showing how to train **iStructTab** on a dummy multimodal classification dataset with tabular features and image-like inputs.
@@ -467,15 +481,161 @@ metrics = {
 print(metrics)
 ```
 
-## For fuller experiments, Optuna tuning, and diagnostic analysis, see:
+## Pretrained HAM10000 Model Weights and Checkpoint
 
-- **`HAM_iStructTab.ipynb`**
+The trained **iSyncTab model weights and full training checkpoint for HAM10000** are hosted separately on the **Hugging Face Model Hub** to keep the GitHub and PyPI distributions lightweight.
 
-This notebook contains the full HAM10000 experiment from the iStructTab workflow, including multimodal image-tabular preprocessing, Optuna-based hyperparameter tuning, GEDS feature sequencing, OEMT training, evaluation metrics, robustness checks, calibration analysis, and diagnostic visualizations.
+The release contains:
 
-- **`iStructTab_PIP_Install_Check.ipynb`**
+```text
+isynctab_ham10000_weights.pt
+isynctab_ham10000_checkpoint.pt
+```
 
-This notebook provides a minimal installation check for the PyPI/GitHub-installed `istructtab` package, including import verification, package/version checks, initialization of core iStructTab components, and a small toy workflow to confirm that the installed package runs correctly.
+- **`isynctab_ham10000_weights.pt`** - Trained iSyncTab model parameters for inference and model loading.
+- **`isynctab_ham10000_checkpoint.pt`** - Full HAM10000 training checkpoint containing the model state and additional training information required to restore or resume the experiment.
+
+> **Hugging Face:** The official iSyncTab-HAM10000 model repository link will be added here after release.
+
+### Download the HAM10000 Model Files
+
+The pretrained model weights and checkpoint can be downloaded from the iSyncTab-HAM10000 repository on the Hugging Face Model Hub.
+
+To download them programmatically, first install the Hugging Face Hub client:
+
+```bash
+pip install huggingface_hub
+```
+
+Then use:
+
+```python
+from huggingface_hub import hf_hub_download
+
+weights_path = hf_hub_download(
+    repo_id="YOUR_HUGGINGFACE_USERNAME/iSyncTab-HAM10000",
+    filename="isynctab_ham10000_weights.pt",
+)
+
+checkpoint_path = hf_hub_download(
+    repo_id="YOUR_HUGGINGFACE_USERNAME/iSyncTab-HAM10000",
+    filename="isynctab_ham10000_checkpoint.pt",
+)
+
+print("Model weights:", weights_path)
+print("Checkpoint:", checkpoint_path)
+```
+
+Replace:
+
+```text
+YOUR_HUGGINGFACE_USERNAME/iSyncTab-HAM10000
+```
+
+with the official Hugging Face repository ID after release.
+
+### Load the HAM10000 Model Weights
+
+The model-weight file contains the trained iSyncTab parameters and can be loaded using PyTorch.
+
+```python
+import torch
+from isynctab import iSyncTab
+
+model = iSyncTab(
+    num_tab_features=YOUR_NUM_TAB_FEATURES,
+    num_classes=YOUR_NUM_CLASSES,
+    # Use the HAM10000 model configuration here
+)
+
+state_dict = torch.load(
+    "isynctab_ham10000_weights.pt",
+    map_location="cpu",
+)
+
+model.load_state_dict(state_dict)
+model.eval()
+```
+
+If the model is being used on GPU:
+
+```python
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = model.to(device)
+```
+
+### Load the Full HAM10000 Checkpoint
+
+The complete checkpoint can be used to restore the trained model and, when the corresponding optimizer state and training metadata are available, resume training.
+
+```python
+import torch
+from isynctab import iSyncTab
+
+checkpoint = torch.load(
+    "isynctab_ham10000_checkpoint.pt",
+    map_location="cpu",
+)
+
+model = iSyncTab(
+    num_tab_features=YOUR_NUM_TAB_FEATURES,
+    num_classes=YOUR_NUM_CLASSES,
+    # Use the HAM10000 model configuration here
+)
+
+model.load_state_dict(checkpoint["model_state_dict"])
+model.eval()
+```
+
+If optimizer information is included in the checkpoint, it can also be restored:
+
+```python
+optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+```
+
+Additional information such as the saved epoch, validation score, hyperparameters, or other training metadata can also be retrieved if included in the released checkpoint:
+
+```python
+epoch = checkpoint.get("epoch")
+best_val_score = checkpoint.get("best_val_score")
+config = checkpoint.get("config")
+
+print("Epoch:", epoch)
+print("Best validation score:", best_val_score)
+print("Configuration:", config)
+```
+
+### HAM10000 Training Data
+
+The released checkpoint was trained on the **HAM10000** skin-lesion dataset using the Kaggle distribution:
+
+**Skin Cancer MNIST: HAM10000**  
+K. Scott Mader  
+https://www.kaggle.com/datasets/kmader/skin-cancer-mnist-ham10000
+
+The original HAM10000 dataset is described in:
+
+> Tschandl, P., Rosendahl, C., and Kittler, H.  
+> *The HAM10000 Dataset, A Large Collection of Multi-Source Dermatoscopic Images of Common Pigmented Skin Lesions.*  
+> Scientific Data, 2018.
+
+The HAM10000 images and metadata are **not redistributed** through the iSyncTab GitHub repository, PyPI package, or Hugging Face model repository.
+
+### Demo Notebook
+
+The provided **`iSyncTab_Demo_PIP_Install.ipynb`** notebook demonstrates:
+
+- Installation of iSyncTab using `pip install isynctab`.
+- Import and initialization of the iSyncTab package.
+- HAM10000 preprocessing and model setup.
+- Optuna-based hyperparameter tuning.
+- NS-PFS feature sequencing.
+- OMT/Linformer-based multimodal training.
+- Evaluation with displayed outputs.
+- A generalized image-tabular example where users can replace the dummy inputs with their own paired datasets.
+- Loading the released HAM10000 model weights.
+- Loading the full HAM10000 checkpoint.
+- Restoring a trained iSyncTab model for inference or further experimentation.
 
 
 ## Related Work and Project Context
