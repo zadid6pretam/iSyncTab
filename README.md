@@ -178,6 +178,7 @@ tqdm>=4.66
 
 ### Repository Layout
 
+```
 iSyncTab/
 │
 ├── isynctab/
@@ -199,6 +200,7 @@ iSyncTab/
 ├── pyproject.toml
 ├── setup.cfg
 └── .gitignore
+```
 
 ### Tested Environment
 
