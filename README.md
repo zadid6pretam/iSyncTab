@@ -110,7 +110,7 @@ This notebook is intended to serve as the primary quick-start and package-usage 
 
 ### Experiment Notebooks: `Experiments/`
 
-iSyncTab was evaluated on **six image-tabular multimodal datasets** in the ECCV 2026 study. Representative experiment notebooks with their displayed outputs are provided in the `Experiments/` directory to support reproducibility and further analysis.
+iSyncTab was evaluated on **six image-tabular multimodal datasets** in the ECCV 2026 study. Some of the representative experiment notebooks with their displayed outputs are provided in the `Experiments/` directory to support reproducibility and further analysis.
 
 - **`iSyncTab_DeepLesion_Subset.ipynb`**  
   Contains the iSyncTab experiment on the DeepLesion subset, including image-tabular preprocessing, model configuration, training, and evaluation with displayed results.
