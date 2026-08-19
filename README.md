@@ -149,6 +149,7 @@ model.load_state_dict(checkpoint["model_state_dict"])
 
 The repository uses the following main dependencies:
 
+```
 numpy>=1.24
 pandas>=2.0
 torch>=2.2
@@ -163,6 +164,7 @@ torchaudio>=2.2
 scikit-learn>=1.3
 opencv-python>=4.8
 tqdm>=4.66
+```
 
 ### Other Top-Level Files
 
