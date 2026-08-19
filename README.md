@@ -74,7 +74,7 @@ This folder contains the core iSyncTab implementations for both image-tabular an
   - Custom PyTorch-based GPU KMeans clustering.
   - NS-PFS-based audio-video feature sequencing.
   - Hungarian matching for synchronized cross-modal cluster pairing.
-  - OMT/Linformer-based multimodal fusion.
+  - OMT-based multimodal fusion.
   - Classification and feature-sequencing consistency objectives.
   - `iSyncTab_AV` as the general audio-video model.
   - `iSyncTabAV` as an alternative API alias.
