@@ -16,7 +16,9 @@
 [![Paper](https://img.shields.io/badge/Paper-Published-success)](https://doi.org/10.1007/978-3-032-37035-8)
 
 <p align="center">
-  <img src="iSyncTab_Architecture.png" alt="iSyncTab Architecture" width="1000">
+  <img src="https://raw.githubusercontent.com/zadid6pretam/iSyncTab/main/iSyncTab_Architecture.png"
+       alt="iSyncTab Architecture"
+       width="1000">
 </p>
 
 iSyncTab is a neural synchrony-guided feature sequencing framework for **multimodal image-tabular learning**. It introduces **Neural Synchrony-guided Paired Feature Sequencing (NS-PFS)** to derive a coherent cross-modal feature order from image and tabular representations, framing feature sequencing through the lens of the **Column Permutation Problem (CPP)**. Rather than treating fused multimodal features as an arbitrarily ordered representation, iSyncTab clusters modality-specific features and aligns image and tabular feature clusters using a synchrony matrix that combines **energy coherence and centroid similarity**, followed by **Hungarian matching** to obtain paired cross-modal clusters. NS-PFS then constructs a synchronized feature sequence that promotes structural coherence and reduces feature dispersion across modalities. The ordered representation is processed by an **Order-aware Memory-augmented Transformer (OMT)** with a Linformer backbone, learnable memory tokens, and an auxiliary sequencing-consistency loss that encourages the model to preserve the learned feature order during prediction. This design makes iSyncTab suitable for heterogeneous image-tabular prediction tasks, including medical imaging and visual classification with structured metadata. Across diverse multimodal benchmarks, iSyncTab demonstrates strong classification performance, improved training stability, data efficiency, and a favorable accuracy-computational cost trade-off compared with tabular-only, image-only, and recent multimodal learning baselines. The generality of the proposed mechanism was further evaluated on **audio-video multimodal data**, demonstrating its applicability beyond image-tabular learning.
@@ -27,7 +29,7 @@ iSyncTab is a neural synchrony-guided feature sequencing framework for **multimo
 
 - **Tabular metadata** (numeric + categorical + optional text-like fields), and  
 - **Image data** (e.g., medical images, natural images).
-- iSyncTab itself is **not specific** to HAM10000: any dataset with tabular + image inputs can be used by providing a matching PyTorch `Dataset` / `DataLoader`.
+- iSyncTab itself is **not specific** to HAM10000/Pokemon/DVM/Deep Lesion/CheXpert/Pet Finder: any dataset with tabular + image inputs can be used by providing a matching PyTorch `Dataset` / `DataLoader`.
 
 The key idea is to treat **both tabular features and image features as tokens**, then use **Neural Synchrony-guided Paired Feature Sequencing (NS-PFS)** to learn a synchronized global permutation across modalities before feeding the ordered token sequence into the **Order-aware Memory-augmented Transformer (OMT)** with a **Linformer** backbone.
 
@@ -49,58 +51,156 @@ BibTeX:
 
 ## Files and Repository Structure
 
-### Python package: `istructtab/`
+### Python package: `isynctab/`
 
-This folder contains the core iSyncTab implementation:
+This folder contains the core iSyncTab implementations for both image-tabular and audio-video multimodal learning:
 
-- `__init__.py` - Package initializer and high-level API exports.
-- `iSyncTab.py` - Main iSyncTab implementation, including:
+- **`__init__.py`** - Package initializer and high-level API exports for `iSyncTab`, `iSyncTab_AV`, and `iSyncTabAV`.
+
+- **`iSyncTab.py`** - Main iSyncTab implementation for **image-tabular multimodal learning**, including:
   - `set_seed` for reproducibility.
-  - `ImageFeatureEncoder` for ResNet-based image feature extraction.
-  - `TabularTokenEncoder` and `TabularEncoder` for numeric, categorical, and text-style tabular inputs.
-  - `GEDS_GPU` for Graph-Enhanced Descriptor Sequencing.
-  - `OEMT` for Order-Aware Efficient Transformer modeling with Linformer and memory tokens.
-  - `iStructTab` as the high-level multimodal image-tabular model wrapper.
+  - ResNet-based image token encoding.
+  - Tabular token encoding for numerical, categorical, and text-style features.
+  - Custom PyTorch-based GPU KMeans clustering.
+  - **Neural Synchrony-guided Paired Feature Sequencing (NS-PFS)**.
+  - Hungarian matching for cross-modal feature-cluster pairing.
+  - Metric-aware feature sequencing and global token permutation.
+  - **Order-aware Memory-augmented Transformer (OMT)** with a Linformer backbone.
+  - Learnable memory tokens.
+  - Classification and feature-sequencing consistency objectives.
+  - `iSyncTab` as the high-level image-tabular multimodal model.
 
-### Notebooks
-  
-- **`HAM_iStructTab.ipynb`**  
-  Contains the full iStructTab experiment pipeline on the HAM10000 dataset. The notebook includes data preprocessing, multimodal image-tabular model setup, Optuna-based hyperparameter tuning, GEDS feature sequencing, OEMT training, evaluation, robustness checks, calibration analysis, and related diagnostic visualizations.
+- **`iSyncTab_AV.py`** - General audio-video extension of iSyncTab, including:
+  - Configurable audio and video token dimensions and sequence lengths.
+  - Projection of heterogeneous audio and video representations into a shared embedding space.
+  - Custom PyTorch-based GPU KMeans clustering.
+  - NS-PFS-based audio-video feature sequencing.
+  - Hungarian matching for synchronized cross-modal cluster pairing.
+  - OMT/Linformer-based multimodal fusion.
+  - Classification and feature-sequencing consistency objectives.
+  - `iSyncTab_AV` as the general audio-video model.
+  - `iSyncTabAV` as an alternative API alias.
 
-- **`iStructTab_PIP_Install_Check.ipynb`**  
-  Demonstrates the installed `istructtab` package after `pip install`. The notebook includes import checks, package/version verification, basic API usage, initialization of the main iStructTab components, and a minimal toy workflow to confirm that the PyPI-installed package runs correctly.
+The audio-video implementation is **dataset-independent** and can be used with precomputed audio and video token representations from different feature extractors and datasets.
 
-### Main dependencies
+---
+
+### Demo Notebook
+
+- **`iSyncTab_Demo_PIP_Install.ipynb`**  
+  Provides an end-to-end demonstration of the publicly installable iSyncTab package. The notebook includes:
+
+  - Installation using:
+
+    ```bash
+    pip install isynctab
+    ```
+
+  - Import and package verification.
+  - Initialization of the image-tabular `iSyncTab` model.
+  - A complete **HAM10000 demonstration** using image and tabular data.
+  - Optuna-based hyperparameter tuning.
+  - NS-PFS feature sequencing and OMT-based training.
+  - Model evaluation with displayed outputs.
+  - A **generalized image-tabular example** using replaceable/dummy datasets to demonstrate how users can adapt iSyncTab to their own paired image-tabular data.
+  - Example code for loading pretrained **model weights**.
+  - Example code for restoring a complete **training checkpoint** and resuming or evaluating a trained model.
+
+This notebook is intended to serve as the primary quick-start and package-usage reference for users installing iSyncTab from PyPI.
+
+---
+
+### Experiment Notebooks: `Experiments/`
+
+iSyncTab was evaluated on **six image-tabular multimodal datasets** in the ECCV 2026 study. Representative experiment notebooks with their displayed outputs are provided in the `Experiments/` directory to support reproducibility and further analysis.
+
+- **`iSyncTab_DeepLesion_Subset.ipynb`**  
+  Contains the iSyncTab experiment on the DeepLesion subset, including image-tabular preprocessing, model configuration, training, and evaluation with displayed results.
+
+- **`iSyncTab_CheXPert_Subset.ipynb`**  
+  Contains the iSyncTab experiment on the CheXpert subset, including multimodal preprocessing, model training, evaluation, and displayed experimental results.
+
+- **`iSyncTab_HAM_Diagnostics.ipynb`**  
+  Contains extended analysis on the HAM10000 dataset, including diagnostic experiments, ablations, robustness analyses, and additional evaluations with displayed outputs.
+
+- **`iSyncTab_AV_RAVDESS_Sensitivity.ipynb`**  
+  Evaluates the generality of the proposed feature-sequencing mechanism beyond image-tabular learning using the **RAVDESS audio-video dataset**. The notebook contains NS-PFS sensitivity analysis across different sequencing metrics and cluster configurations with displayed results.
+
+The original iSyncTab framework focuses on **image-tabular multimodal learning**, while the audio-video experiment demonstrates that the proposed NS-PFS mechanism can also be applied to other heterogeneous multimodal feature streams.
+
+---
+
+### Pretrained Model and Checkpoint
+
+The trained iSyncTab model weights and complete checkpoint for the **HAM10000** experiment will be released separately through the **Hugging Face Model Hub**.
+
+The GitHub repository focuses on source code, package implementation, experiment notebooks, and reproducibility resources, while larger trained model artifacts are hosted separately.
+
+The demo notebook includes examples showing how to:
+
+```python
+# Load model weights
+model.load_state_dict(torch.load("isynctab_ham10000_weights.pt"))
+
+# Load a complete checkpoint
+checkpoint = torch.load("isynctab_ham10000_checkpoint.pt")
+model.load_state_dict(checkpoint["model_state_dict"])
+```
+
+### Main Dependencies
 
 The repository uses the following main dependencies:
 
-```txt
 numpy>=1.24
 pandas>=2.0
-scipy>=1.11
-
 torch>=2.2
 torchvision>=0.17
-linformer>=0.2
-
-scikit-learn>=1.3
-optuna>=3.6
-
+scipy>=1.11
 Pillow>=10.0
+linformer>=0.2
+optuna>=3.6
 matplotlib>=3.7
-```
 
-### Other top-level files
+torchaudio>=2.2
+scikit-learn>=1.3
+opencv-python>=4.8
+tqdm>=4.66
 
-- **`requirements.txt`** - Python dependencies required to run the iStructTab package and notebooks.
-- **`iStructTab_Architecture.png`** - High-level architecture diagram of the iStructTab framework.
-- **`HAM_iStructTab.ipynb`** - Full HAM10000 experiment notebook with Optuna tuning, training, evaluation, robustness checks, calibration analysis, and diagnostic visualizations.
-- **`iStructTab_PIP_Install_Check.ipynb`** - Minimal notebook for checking the installed `istructtab` package, verifying imports, initializing core modules, and running a toy workflow.
-- **`LICENSE`** - MIT license for this repository.
-- **`README.md`** - Project overview, installation, usage instructions, repository structure, and citation information.
-- **`.gitignore`** - Standard Git ignore rules for Python, Jupyter, cache files, checkpoints, and experiment outputs.
-- **`pyproject.toml`** - Modern Python build-system and package metadata file for installation and PyPI upload.
-- **`setup.cfg`** - Optional setuptools configuration file for package metadata and installation settings, if used alongside `pyproject.toml`.
+### Other Top-Level Files
+
+- **`requirements.txt`** - Python dependencies required to run the iSyncTab package, experiment notebooks, image-tabular experiments, and audio-video experiments.
+- **`iSyncTab_Architecture.png`** - High-level architecture diagram of the iSyncTab framework, illustrating NS-PFS-based cross-modal feature sequencing and OMT-based multimodal learning.
+- **`iSyncTab_Demo_PIP_Install.ipynb`** - Main PyPI installation and usage demonstration, including HAM10000 Optuna tuning, a generalized replaceable-dataset example, and examples for loading model weights and checkpoints.
+- **`Experiments/`** - Reproducibility and analysis notebooks for DeepLesion, CheXpert, HAM10000 diagnostics/ablations, and RAVDESS audio-video sensitivity analysis.
+- **`LICENSE`** - MIT license for the iSyncTab source-code repository.
+- **`README.md`** - Project overview, installation instructions, methodology, package usage, experimental resources, repository structure, links, and citation information.
+- **`.gitignore`** - Git ignore rules for Python cache files, Jupyter temporary files, local datasets, checkpoints, model weights, experiment outputs, and other generated artifacts.
+- **`pyproject.toml`** - Modern Python build-system configuration and package metadata used for installation and PyPI distribution.
+- **`setup.cfg`** - Setuptools package configuration containing package metadata, dependencies, classifiers, project links, and package-discovery settings.
+
+### Repository Layout
+
+iSyncTab/
+│
+├── isynctab/
+│   ├── __init__.py
+│   ├── iSyncTab.py
+│   └── iSyncTab_AV.py
+│
+├── Experiments/
+│   ├── iSyncTab_DeepLesion_Subset.ipynb
+│   ├── iSyncTab_CheXPert_Subset.ipynb
+│   ├── iSyncTab_HAM_Diagnostics.ipynb
+│   └── iSyncTab_AV_RAVDESS_Sensitivity.ipynb
+│
+├── iSyncTab_Demo_PIP_Install.ipynb
+├── iSyncTab_Architecture.png
+├── README.md
+├── LICENSE
+├── requirements.txt
+├── pyproject.toml
+├── setup.cfg
+└── .gitignore
 
 ### Tested Environment
 
@@ -110,8 +210,11 @@ matplotlib>=3.7
 - scipy 1.11.0+
 - torch 2.2.0+
 - torchvision 0.17.0+
+- torchaudio 2.2.0+
 - linformer 0.2.0+
 - scikit-learn 1.3.0+
+- opencv-python 4.8.0+
+- tqdm 4.66.0+
 - optuna 3.6.0+
 - Pillow 10.0.0+
 - matplotlib 3.7.0+
