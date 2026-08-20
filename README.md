@@ -1524,11 +1524,13 @@ where `loss_ce` is the classification loss and `loss_fs` encourages consistency 
 
 ---
 
-### Using Mixed Numerical and Categorical Tabular Features
+### Using Mixed Numerical, Categorical, and Text Tabular Features
 
 The examples above use only numerical tabular features for simplicity.
 
-iSyncTab also accepts tabular inputs as a dictionary:
+iSyncTab also accepts tabular inputs as a dictionary.
+
+For numerical and categorical features:
 
 ```python
 x_tab = {
@@ -1553,10 +1555,23 @@ When numerical and categorical features are used, set:
 num_tab_features = N_num + N_cat
 ```
 
-to the total number of tabular tokens supplied to iSyncTab.
+If text-style tabular fields are also used, include them through the optional `"text"` field:
 
-Text-style tabular inputs can also be supplied through the optional `"text"` field when appropriate.
+```python
+x_tab = {
+    "num": x_num,      # FloatTensor: (B, N_num)
+    "cat": x_cat,      # LongTensor:  (B, N_cat)
+    "text": x_text,    # Text-style tabular inputs
+}
+```
 
+In that case, set:
+
+```python
+num_tab_features = N_num + N_cat + N_text
+```
+
+`num_tab_features` should always equal the total number of tabular tokens supplied to iSyncTab.
 ---
 
 ### Binary Classification
