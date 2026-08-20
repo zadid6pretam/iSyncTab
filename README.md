@@ -45,7 +45,8 @@ BibTeX:
   doi       = {10.1007/978-3-032-37035-8}
 }
 ```
-- Paper: https://link.springer.com/chapter/10.1007/978-3-032-37035-8 
+- Paper: https://link.springer.com/chapter/10.1007/978-3-032-37035-8
+- ECCV Page: https://eccv.ecva.net/virtual/2026/poster/5442
 
 ## Files and Repository Structure
 
