@@ -285,36 +285,86 @@ from isynctab import iSyncTabAV
 
 ## Example Usage
 
-Below is a minimal example showing how to train **iStructTab** on a dummy multimodal classification dataset with tabular features and image-like inputs.
+iSyncTab can be trained directly on paired **image-tabular datasets** using either fixed hyperparameters or dataset-specific hyperparameter tuning.
+
+For a new dataset, we recommend the **Optuna-tuned workflow** because the optimal NS-PFS configuration, transformer capacity, memory-token configuration, learning rate, and sequencing-loss weight can vary substantially across datasets.
+
+The examples below use a synthetic multimodal classification dataset with numerical tabular features and paired image inputs. Replace the synthetic arrays with your own paired image-tabular dataset.
+
+> **Note:** `pretrained_resnet=False` initializes the image backbone from scratch. Set `pretrained_resnet=True` if you prefer ImageNet-initialized ResNet-50 features.
+
+---
+
+### Example 1: Training iSyncTab Without Hyperparameter Tuning
+
+This example uses a fixed iSyncTab configuration and trains the model directly from scratch.
 
 ```python
+import random
 import numpy as np
 import torch
+
+from torch.utils.data import DataLoader, TensorDataset
 from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+)
 
-from istructtab import iStructTab, set_seed
+from isynctab import iSyncTab
 
+
+# ============================================================
 # Reproducibility
+# ============================================================
+
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
 set_seed(42)
 
-# Device
-device = "cuda" if torch.cuda.is_available() else "cpu"
 
-# -------------------------------------------------------
-# Dummy multimodal classification data
-# -------------------------------------------------------
-num_samples = 300
+# ============================================================
+# Device
+# ============================================================
+
+device = torch.device(
+    "cuda" if torch.cuda.is_available() else "cpu"
+)
+
+print("Device:", device)
+
+
+# ============================================================
+# Dummy paired image-tabular dataset
+# Replace this section with your own dataset
+# ============================================================
+
+num_samples = 240
 num_tab_features = 40
 num_classes = 3
-image_size = 64
+image_size = 128
 
+
+# Numerical tabular features
 X_tab, y = make_classification(
     n_samples=num_samples,
     n_features=num_tab_features,
-    n_informative=15,
-    n_redundant=10,
+    n_informative=18,
+    n_redundant=8,
     n_classes=num_classes,
     random_state=42,
 )
@@ -322,164 +372,1308 @@ X_tab, y = make_classification(
 X_tab = X_tab.astype(np.float32)
 y = y.astype(np.int64)
 
-# Dummy image inputs: (N, C, H, W)
-X_img = np.random.rand(num_samples, 3, image_size, image_size).astype(np.float32)
 
-# Train/test split
-X_tab_train, X_tab_test, X_img_train, X_img_test, y_train, y_test = train_test_split(
+# Paired image inputs: (N, C, H, W)
+rng = np.random.default_rng(42)
+
+X_img = rng.random(
+    (num_samples, 3, image_size, image_size),
+    dtype=np.float32,
+)
+
+
+# Add a small class-dependent visual signal for demonstration
+for cls in range(num_classes):
+    mask = y == cls
+    channel = cls % 3
+
+    X_img[mask, channel] = np.clip(
+        X_img[mask, channel] + 0.15,
+        0.0,
+        1.0,
+    )
+
+
+# ============================================================
+# Train / validation / test split
+# ============================================================
+
+(
+    X_tab_train,
+    X_tab_temp,
+    X_img_train,
+    X_img_temp,
+    y_train,
+    y_temp,
+) = train_test_split(
     X_tab,
     X_img,
     y,
-    test_size=0.2,
+    test_size=0.30,
     random_state=42,
     stratify=y,
 )
 
+
+(
+    X_tab_val,
+    X_tab_test,
+    X_img_val,
+    X_img_test,
+    y_val,
+    y_test,
+) = train_test_split(
+    X_tab_temp,
+    X_img_temp,
+    y_temp,
+    test_size=0.50,
+    random_state=42,
+    stratify=y_temp,
+)
+
+
+# ============================================================
 # Standardize tabular features
+# Fit preprocessing only on the training split
+# ============================================================
+
 scaler = StandardScaler()
-X_tab_train = scaler.fit_transform(X_tab_train).astype(np.float32)
-X_tab_test = scaler.transform(X_tab_test).astype(np.float32)
 
+X_tab_train = scaler.fit_transform(
+    X_tab_train
+).astype(np.float32)
+
+X_tab_val = scaler.transform(
+    X_tab_val
+).astype(np.float32)
+
+X_tab_test = scaler.transform(
+    X_tab_test
+).astype(np.float32)
+
+
+# ============================================================
 # Convert to tensors
-X_tab_train = torch.tensor(X_tab_train, dtype=torch.float32).to(device)
-X_tab_test = torch.tensor(X_tab_test, dtype=torch.float32).to(device)
+# ============================================================
 
-X_img_train = torch.tensor(X_img_train, dtype=torch.float32).to(device)
-X_img_test = torch.tensor(X_img_test, dtype=torch.float32).to(device)
+train_dataset = TensorDataset(
+    torch.tensor(X_tab_train, dtype=torch.float32),
+    torch.tensor(X_img_train, dtype=torch.float32),
+    torch.tensor(y_train, dtype=torch.long),
+)
 
-y_train = torch.tensor(y_train, dtype=torch.long).to(device)
-y_test = torch.tensor(y_test, dtype=torch.long).to(device)
+val_dataset = TensorDataset(
+    torch.tensor(X_tab_val, dtype=torch.float32),
+    torch.tensor(X_img_val, dtype=torch.float32),
+    torch.tensor(y_val, dtype=torch.long),
+)
 
-# -------------------------------------------------------
-# Initialize iStructTab
-# -------------------------------------------------------
-model = iStructTab(
+test_dataset = TensorDataset(
+    torch.tensor(X_tab_test, dtype=torch.float32),
+    torch.tensor(X_img_test, dtype=torch.float32),
+    torch.tensor(y_test, dtype=torch.long),
+)
+
+
+batch_size = 16
+
+train_loader = DataLoader(
+    train_dataset,
+    batch_size=batch_size,
+    shuffle=True,
+)
+
+val_loader = DataLoader(
+    val_dataset,
+    batch_size=batch_size,
+    shuffle=False,
+)
+
+test_loader = DataLoader(
+    test_dataset,
+    batch_size=batch_size,
+    shuffle=False,
+)
+
+
+# ============================================================
+# Initialize iSyncTab
+# ============================================================
+
+model = iSyncTab(
     num_tab_features=num_tab_features,
     num_classes=num_classes,
+
+    # OMT / Linformer
     d_model=128,
-    tab_depth=2,
-    tab_heads=4,
-    oemt_k=64,
-    oemt_M=10,
-    oemt_heads=4,
-    oemt_layers=2,
+    linformer_depth=4,
+    linformer_heads=4,
     linformer_k=32,
+    num_memory_tokens=1,
+
+    # NS-PFS
+    num_clusters=4,
+    metric="variance",
     lambda_fs=0.1,
+
+    # Full scratch training
     pretrained_resnet=False,
-    img_in_channels=3,
+
+    device=device,
 ).to(device)
 
-optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
 
-# -------------------------------------------------------
-# Train
-# -------------------------------------------------------
-model.train()
+optimizer = torch.optim.AdamW(
+    model.parameters(),
+    lr=1e-4,
+    weight_decay=1e-4,
+)
 
-epochs = 5
-batch_size = 32
 
-for epoch in range(epochs):
-    permutation = torch.randperm(X_tab_train.size(0), device=device)
+# ============================================================
+# Training helper
+# ============================================================
+
+def train_one_epoch(model, loader, optimizer):
+    model.train()
+
     total_loss = 0.0
+    total_correct = 0
+    total_samples = 0
 
-    for start in range(0, X_tab_train.size(0), batch_size):
-        idx = permutation[start:start + batch_size]
+    for x_tab, x_img, y_batch in loader:
+        x_tab = x_tab.to(device)
+        x_img = x_img.to(device)
+        y_batch = y_batch.to(device)
 
-        batch_tab = X_tab_train[idx]
-        batch_img = X_img_train[idx]
-        batch_y = y_train[idx]
+        optimizer.zero_grad(set_to_none=True)
 
-        optimizer.zero_grad()
+        out = model(
+            x_tab,
+            x_img,
+            y=y_batch,
+        )
 
-        out = model(batch_tab, batch_img, y=batch_y)
         loss = out["loss"]
 
         loss.backward()
         optimizer.step()
 
-        total_loss += loss.item() * batch_tab.size(0)
+        batch_size_now = y_batch.size(0)
 
-    avg_loss = total_loss / X_tab_train.size(0)
-    print(f"Epoch {epoch + 1}/{epochs} | Loss: {avg_loss:.4f}")
+        total_loss += (
+            loss.detach().item() * batch_size_now
+        )
 
-# -------------------------------------------------------
-# Evaluate
-# -------------------------------------------------------
+        preds = out["logits"].argmax(dim=1)
+
+        total_correct += (
+            preds == y_batch
+        ).sum().item()
+
+        total_samples += batch_size_now
+
+    return {
+        "loss": total_loss / total_samples,
+        "accuracy": total_correct / total_samples,
+    }
+
+
+# ============================================================
+# Evaluation helper
+# ============================================================
+
+@torch.no_grad()
+def evaluate(model, loader):
+    model.eval()
+
+    y_true = []
+    y_pred = []
+
+    total_loss = 0.0
+    total_samples = 0
+
+    for x_tab, x_img, y_batch in loader:
+        x_tab = x_tab.to(device)
+        x_img = x_img.to(device)
+        y_batch = y_batch.to(device)
+
+        out = model(
+            x_tab,
+            x_img,
+            y=y_batch,
+        )
+
+        batch_size_now = y_batch.size(0)
+
+        total_loss += (
+            out["loss"].detach().item()
+            * batch_size_now
+        )
+
+        preds = out["logits"].argmax(dim=1)
+
+        y_true.extend(
+            y_batch.cpu().numpy()
+        )
+
+        y_pred.extend(
+            preds.cpu().numpy()
+        )
+
+        total_samples += batch_size_now
+
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+
+    return {
+        "loss": total_loss / total_samples,
+        "accuracy": accuracy_score(
+            y_true,
+            y_pred,
+        ),
+        "macro_precision": precision_score(
+            y_true,
+            y_pred,
+            average="macro",
+            zero_division=0,
+        ),
+        "macro_recall": recall_score(
+            y_true,
+            y_pred,
+            average="macro",
+            zero_division=0,
+        ),
+        "macro_f1": f1_score(
+            y_true,
+            y_pred,
+            average="macro",
+            zero_division=0,
+        ),
+    }
+
+
+# ============================================================
+# Train
+# ============================================================
+
+epochs = 5
+
+for epoch in range(epochs):
+
+    train_metrics = train_one_epoch(
+        model,
+        train_loader,
+        optimizer,
+    )
+
+    val_metrics = evaluate(
+        model,
+        val_loader,
+    )
+
+    print(
+        f"Epoch {epoch + 1:02d}/{epochs} | "
+        f"Train Loss: {train_metrics['loss']:.4f} | "
+        f"Train Acc: {train_metrics['accuracy']:.4f} | "
+        f"Val Loss: {val_metrics['loss']:.4f} | "
+        f"Val Acc: {val_metrics['accuracy']:.4f}"
+    )
+
+
+# ============================================================
+# Final test evaluation
+# ============================================================
+
+test_metrics = evaluate(
+    model,
+    test_loader,
+)
+
+print("\nTest Metrics")
+
+for name, value in test_metrics.items():
+    print(f"{name}: {value:.4f}")
+
+
+# ============================================================
+# Inspect NS-PFS and OMT outputs
+# ============================================================
+
 model.eval()
 
+x_tab_batch, x_img_batch, _ = next(
+    iter(test_loader)
+)
+
+x_tab_batch = x_tab_batch.to(device)
+x_img_batch = x_img_batch.to(device)
+
 with torch.no_grad():
-    out = model(X_tab_test, X_img_test)
-    logits = out["logits"]
-    preds = logits.argmax(dim=1)
+    out = model(
+        x_tab_batch,
+        x_img_batch,
+    )
 
-    accuracy = (preds == y_test).float().mean().item()
-
-print(f"Test accuracy: {accuracy:.4f}")
-print("GEDS feature sequence shape:", out["sequence"].shape)
-print("GEDS scores shape:", out["geds_scores"].shape)
+print("\nOutput Shapes")
+print("Logits:", out["logits"].shape)
+print("NS-PFS permutation:", out["perm"].shape)
+print("Sequencing scores:", out["seq_scores"].shape)
+print("Sequencing target:", out["beta"].shape)
+print("OMT representation:", out["h_cls"].shape)
 ```
 
-- The returned output dictionary contains the model predictions, GEDS sequencing information, feature-sequencing scores, and optional training losses. For supervised classification, iStructTab returns:
+---
+
+### Example 2: Training iSyncTab with Optuna Hyperparameter Tuning
+
+For a **new image-tabular dataset**, this is the recommended workflow.
+
+The example first tunes iSyncTab using only the training and validation splits. The test split is kept completely separate from hyperparameter selection.
+
+After Optuna selects the best configuration, a new iSyncTab model is initialized from scratch using the selected hyperparameters and trained on the combined training and validation data before final evaluation on the test set.
 
 ```python
-{
-    "logits": ...,       # Tensor of shape (B, num_classes)
-    "sequence": ...,     # Tensor of shape (m,), learned GEDS feature order
-    "geds_scores": ...,  # Tensor of shape (m,), GEDS feature scores
-    "fs_scores": ...,    # Tensor of shape (B, m), OEMT-predicted feature-sequencing scores
-    "beta": ...,         # Tensor of shape (B, m), target sequencing vector
+import gc
+import random
+import numpy as np
+import optuna
+import torch
 
-    # Returned only when labels y are provided
-    "loss": ...,         # Total loss = CE loss + lambda_fs * feature-sequencing loss
-    "loss_ce": ...,      # Cross-entropy classification loss
-    "loss_fs": ...       # Feature-sequencing regularization loss
-}
-```
+from torch.utils.data import (
+    DataLoader,
+    TensorDataset,
+    ConcatDataset,
+)
 
-- For binary classification, set:
+from sklearn.datasets import make_classification
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+)
 
-```python
-num_classes = 2
+from isynctab import iSyncTab
 
-model = iStructTab(
+
+# ============================================================
+# Reproducibility
+# ============================================================
+
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
+set_seed(42)
+
+
+# ============================================================
+# Device
+# ============================================================
+
+device = torch.device(
+    "cuda" if torch.cuda.is_available() else "cpu"
+)
+
+print("Device:", device)
+
+
+# ============================================================
+# Dummy paired image-tabular dataset
+# Replace this section with your own dataset
+# ============================================================
+
+num_samples = 240
+num_tab_features = 40
+num_classes = 3
+image_size = 128
+
+
+X_tab, y = make_classification(
+    n_samples=num_samples,
+    n_features=num_tab_features,
+    n_informative=18,
+    n_redundant=8,
+    n_classes=num_classes,
+    random_state=42,
+)
+
+X_tab = X_tab.astype(np.float32)
+y = y.astype(np.int64)
+
+
+rng = np.random.default_rng(42)
+
+X_img = rng.random(
+    (num_samples, 3, image_size, image_size),
+    dtype=np.float32,
+)
+
+
+# Small class-dependent image signal
+for cls in range(num_classes):
+    mask = y == cls
+    channel = cls % 3
+
+    X_img[mask, channel] = np.clip(
+        X_img[mask, channel] + 0.15,
+        0.0,
+        1.0,
+    )
+
+
+# ============================================================
+# Train / validation / test split
+# ============================================================
+
+(
+    X_tab_train,
+    X_tab_temp,
+    X_img_train,
+    X_img_temp,
+    y_train,
+    y_temp,
+) = train_test_split(
+    X_tab,
+    X_img,
+    y,
+    test_size=0.30,
+    random_state=42,
+    stratify=y,
+)
+
+
+(
+    X_tab_val,
+    X_tab_test,
+    X_img_val,
+    X_img_test,
+    y_val,
+    y_test,
+) = train_test_split(
+    X_tab_temp,
+    X_img_temp,
+    y_temp,
+    test_size=0.50,
+    random_state=42,
+    stratify=y_temp,
+)
+
+
+# ============================================================
+# Standardize tabular features
+# ============================================================
+
+scaler = StandardScaler()
+
+X_tab_train = scaler.fit_transform(
+    X_tab_train
+).astype(np.float32)
+
+X_tab_val = scaler.transform(
+    X_tab_val
+).astype(np.float32)
+
+X_tab_test = scaler.transform(
+    X_tab_test
+).astype(np.float32)
+
+
+# ============================================================
+# Tensor datasets
+# ============================================================
+
+train_dataset = TensorDataset(
+    torch.tensor(X_tab_train, dtype=torch.float32),
+    torch.tensor(X_img_train, dtype=torch.float32),
+    torch.tensor(y_train, dtype=torch.long),
+)
+
+val_dataset = TensorDataset(
+    torch.tensor(X_tab_val, dtype=torch.float32),
+    torch.tensor(X_img_val, dtype=torch.float32),
+    torch.tensor(y_val, dtype=torch.long),
+)
+
+test_dataset = TensorDataset(
+    torch.tensor(X_tab_test, dtype=torch.float32),
+    torch.tensor(X_img_test, dtype=torch.float32),
+    torch.tensor(y_test, dtype=torch.long),
+)
+
+
+# ============================================================
+# DataLoader helper
+# ============================================================
+
+def make_loader(
+    dataset,
+    batch_size,
+    shuffle,
+):
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=shuffle,
+        pin_memory=torch.cuda.is_available(),
+    )
+
+
+# ============================================================
+# Training helper
+# ============================================================
+
+def train_one_epoch(
+    model,
+    loader,
+    optimizer,
+):
+    model.train()
+
+    total_loss = 0.0
+    total_correct = 0
+    total_samples = 0
+
+    for x_tab, x_img, y_batch in loader:
+
+        x_tab = x_tab.to(
+            device,
+            non_blocking=True,
+        )
+
+        x_img = x_img.to(
+            device,
+            non_blocking=True,
+        )
+
+        y_batch = y_batch.to(
+            device,
+            non_blocking=True,
+        )
+
+        optimizer.zero_grad(
+            set_to_none=True
+        )
+
+        out = model(
+            x_tab,
+            x_img,
+            y=y_batch,
+        )
+
+        loss = out["loss"]
+
+        loss.backward()
+        optimizer.step()
+
+        batch_size_now = y_batch.size(0)
+
+        total_loss += (
+            loss.detach().item()
+            * batch_size_now
+        )
+
+        preds = out["logits"].argmax(
+            dim=1
+        )
+
+        total_correct += (
+            preds == y_batch
+        ).sum().item()
+
+        total_samples += batch_size_now
+
+    return {
+        "loss": total_loss / total_samples,
+        "accuracy": total_correct / total_samples,
+    }
+
+
+# ============================================================
+# Evaluation helper
+# ============================================================
+
+@torch.no_grad()
+def evaluate(
+    model,
+    loader,
+):
+    model.eval()
+
+    y_true = []
+    y_pred = []
+
+    total_loss = 0.0
+    total_samples = 0
+
+    for x_tab, x_img, y_batch in loader:
+
+        x_tab = x_tab.to(
+            device,
+            non_blocking=True,
+        )
+
+        x_img = x_img.to(
+            device,
+            non_blocking=True,
+        )
+
+        y_batch = y_batch.to(
+            device,
+            non_blocking=True,
+        )
+
+        out = model(
+            x_tab,
+            x_img,
+            y=y_batch,
+        )
+
+        batch_size_now = y_batch.size(0)
+
+        total_loss += (
+            out["loss"].detach().item()
+            * batch_size_now
+        )
+
+        preds = out["logits"].argmax(
+            dim=1
+        )
+
+        y_true.extend(
+            y_batch.cpu().numpy()
+        )
+
+        y_pred.extend(
+            preds.cpu().numpy()
+        )
+
+        total_samples += batch_size_now
+
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+
+    return {
+        "loss": total_loss / total_samples,
+        "accuracy": accuracy_score(
+            y_true,
+            y_pred,
+        ),
+        "macro_precision": precision_score(
+            y_true,
+            y_pred,
+            average="macro",
+            zero_division=0,
+        ),
+        "macro_recall": recall_score(
+            y_true,
+            y_pred,
+            average="macro",
+            zero_division=0,
+        ),
+        "macro_f1": f1_score(
+            y_true,
+            y_pred,
+            average="macro",
+            zero_division=0,
+        ),
+    }
+
+
+# ============================================================
+# Optuna objective
+# ============================================================
+
+TUNE_EPOCHS = 3
+
+
+def objective(trial):
+
+    # Use the same initialization seed for comparable trials
+    set_seed(42)
+
+    # --------------------------------------------------------
+    # OMT / Linformer search space
+    # --------------------------------------------------------
+
+    d_model = trial.suggest_categorical(
+        "d_model",
+        [128, 192, 256],
+    )
+
+    linformer_heads = trial.suggest_categorical(
+        "linformer_heads",
+        [2, 4, 8],
+    )
+
+    linformer_depth = trial.suggest_int(
+        "linformer_depth",
+        2,
+        5,
+    )
+
+    linformer_k = trial.suggest_categorical(
+        "linformer_k",
+        [16, 32, 64],
+    )
+
+    num_memory_tokens = trial.suggest_int(
+        "num_memory_tokens",
+        1,
+        4,
+    )
+
+
+    # --------------------------------------------------------
+    # NS-PFS search space
+    # --------------------------------------------------------
+
+    num_clusters = trial.suggest_int(
+        "num_clusters",
+        3,
+        8,
+    )
+
+    metric = trial.suggest_categorical(
+        "metric",
+        [
+            "variance",
+            "energy",
+            "manhattan",
+            "cosine",
+            "correlation",
+        ],
+    )
+
+    lambda_fs = trial.suggest_float(
+        "lambda_fs",
+        1e-2,
+        3e-1,
+        log=True,
+    )
+
+    nspfs_bins = trial.suggest_categorical(
+        "nspfs_bins",
+        [16, 32, 64],
+    )
+
+    nspfs_sync_temperature = trial.suggest_float(
+        "nspfs_sync_temperature",
+        0.5,
+        2.0,
+        log=True,
+    )
+
+    nspfs_energy_weight = trial.suggest_float(
+        "nspfs_energy_weight",
+        0.25,
+        2.0,
+        log=True,
+    )
+
+    nspfs_centroid_weight = trial.suggest_float(
+        "nspfs_centroid_weight",
+        0.25,
+        2.0,
+        log=True,
+    )
+
+    nspfs_pair_order = trial.suggest_categorical(
+        "nspfs_pair_order",
+        [
+            "sync",
+            "energy",
+            "size",
+        ],
+    )
+
+    nspfs_within_cluster_order = (
+        trial.suggest_categorical(
+            "nspfs_within_cluster_order",
+            [
+                "metric_desc",
+                "metric_asc",
+                "original",
+                "alternating",
+            ],
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # Optimization search space
+    # --------------------------------------------------------
+
+    lr = trial.suggest_float(
+        "lr",
+        1e-5,
+        5e-4,
+        log=True,
+    )
+
+    weight_decay = trial.suggest_float(
+        "weight_decay",
+        1e-6,
+        1e-3,
+        log=True,
+    )
+
+    batch_size = trial.suggest_categorical(
+        "batch_size",
+        [8, 16, 32],
+    )
+
+
+    # --------------------------------------------------------
+    # DataLoaders
+    # --------------------------------------------------------
+
+    train_loader = make_loader(
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+    )
+
+    val_loader = make_loader(
+        val_dataset,
+        batch_size=batch_size,
+        shuffle=False,
+    )
+
+
+    # --------------------------------------------------------
+    # Build iSyncTab
+    # --------------------------------------------------------
+
+    model = iSyncTab(
+        num_tab_features=num_tab_features,
+        num_classes=num_classes,
+
+        d_model=d_model,
+        linformer_depth=linformer_depth,
+        linformer_heads=linformer_heads,
+        linformer_k=linformer_k,
+        num_memory_tokens=num_memory_tokens,
+
+        num_clusters=num_clusters,
+        metric=metric,
+        lambda_fs=lambda_fs,
+
+        nspfs_bins=nspfs_bins,
+        nspfs_sync_temperature=(
+            nspfs_sync_temperature
+        ),
+        nspfs_energy_weight=(
+            nspfs_energy_weight
+        ),
+        nspfs_centroid_weight=(
+            nspfs_centroid_weight
+        ),
+        nspfs_pair_order=(
+            nspfs_pair_order
+        ),
+        nspfs_within_cluster_order=(
+            nspfs_within_cluster_order
+        ),
+
+        # Full scratch training
+        pretrained_resnet=False,
+
+        device=device,
+    ).to(device)
+
+
+    optimizer = torch.optim.AdamW(
+        model.parameters(),
+        lr=lr,
+        weight_decay=weight_decay,
+    )
+
+
+    best_val_accuracy = 0.0
+
+    try:
+
+        for epoch in range(TUNE_EPOCHS):
+
+            train_one_epoch(
+                model,
+                train_loader,
+                optimizer,
+            )
+
+            val_metrics = evaluate(
+                model,
+                val_loader,
+            )
+
+            val_accuracy = (
+                val_metrics["accuracy"]
+            )
+
+            best_val_accuracy = max(
+                best_val_accuracy,
+                val_accuracy,
+            )
+
+            trial.report(
+                val_accuracy,
+                step=epoch,
+            )
+
+            if trial.should_prune():
+                raise optuna.TrialPruned()
+
+    finally:
+
+        del model
+        del optimizer
+
+        gc.collect()
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+    return best_val_accuracy
+
+
+# ============================================================
+# Run Optuna
+# ============================================================
+
+sampler = optuna.samplers.TPESampler(
+    seed=42
+)
+
+pruner = optuna.pruners.MedianPruner(
+    n_startup_trials=5,
+    n_warmup_steps=1,
+)
+
+study = optuna.create_study(
+    direction="maximize",
+    sampler=sampler,
+    pruner=pruner,
+)
+
+
+# Small value for demonstration.
+# Increase this for real experiments.
+N_TRIALS = 10
+
+study.optimize(
+    objective,
+    n_trials=N_TRIALS,
+)
+
+
+print("\nBest validation accuracy:")
+print(study.best_value)
+
+print("\nBest hyperparameters:")
+
+for key, value in study.best_params.items():
+    print(f"{key}: {value}")
+
+
+# ============================================================
+# Train final model from scratch using best parameters
+# ============================================================
+
+best = study.best_params
+
+set_seed(42)
+
+
+train_val_dataset = ConcatDataset(
+    [
+        train_dataset,
+        val_dataset,
+    ]
+)
+
+
+final_train_loader = make_loader(
+    train_val_dataset,
+    batch_size=best["batch_size"],
+    shuffle=True,
+)
+
+test_loader = make_loader(
+    test_dataset,
+    batch_size=best["batch_size"],
+    shuffle=False,
+)
+
+
+final_model = iSyncTab(
     num_tab_features=num_tab_features,
     num_classes=num_classes,
-    d_model=128,
-    tab_depth=2,
-    tab_heads=4,
-    oemt_k=64,
-    oemt_M=10,
-    oemt_heads=4,
-    oemt_layers=2,
-    linformer_k=32,
-    lambda_fs=0.1,
+
+    d_model=best["d_model"],
+    linformer_depth=best["linformer_depth"],
+    linformer_heads=best["linformer_heads"],
+    linformer_k=best["linformer_k"],
+    num_memory_tokens=best["num_memory_tokens"],
+
+    num_clusters=best["num_clusters"],
+    metric=best["metric"],
+    lambda_fs=best["lambda_fs"],
+
+    nspfs_bins=best["nspfs_bins"],
+    nspfs_sync_temperature=(
+        best["nspfs_sync_temperature"]
+    ),
+    nspfs_energy_weight=(
+        best["nspfs_energy_weight"]
+    ),
+    nspfs_centroid_weight=(
+        best["nspfs_centroid_weight"]
+    ),
+    nspfs_pair_order=(
+        best["nspfs_pair_order"]
+    ),
+    nspfs_within_cluster_order=(
+        best["nspfs_within_cluster_order"]
+    ),
+
     pretrained_resnet=False,
-    img_in_channels=3,
+
+    device=device,
+).to(device)
+
+
+final_optimizer = torch.optim.AdamW(
+    final_model.parameters(),
+    lr=best["lr"],
+    weight_decay=best["weight_decay"],
+)
+
+
+FINAL_EPOCHS = 5
+
+for epoch in range(FINAL_EPOCHS):
+
+    metrics = train_one_epoch(
+        final_model,
+        final_train_loader,
+        final_optimizer,
+    )
+
+    print(
+        f"Final Epoch "
+        f"{epoch + 1:02d}/{FINAL_EPOCHS} | "
+        f"Loss: {metrics['loss']:.4f} | "
+        f"Accuracy: {metrics['accuracy']:.4f}"
+    )
+
+
+# ============================================================
+# Final test evaluation
+# ============================================================
+
+test_metrics = evaluate(
+    final_model,
+    test_loader,
+)
+
+print("\nFinal Test Metrics")
+
+for name, value in test_metrics.items():
+    print(f"{name}: {value:.4f}")
+```
+
+> **Recommended for new datasets:** Use the Optuna workflow when training iSyncTab on a new dataset. The values of `N_TRIALS`, `TUNE_EPOCHS`, and `FINAL_EPOCHS` above are intentionally small so the example can be run quickly. For full experiments, increase these values according to the dataset size and available compute.
+
+---
+
+### iSyncTab Output Dictionary
+
+The iSyncTab forward pass returns classification outputs together with the learned **NS-PFS permutation** and **OMT representations**.
+
+```python
+out = model(
+    x_tab,
+    x_img,
+    y=labels,
 )
 ```
 
-- During evaluation, predictions can be obtained from `out["logits"]`, and standard classification metrics such as accuracy, precision, recall, and F1-score can be computed using `scikit-learn`.
+The returned dictionary contains:
 
 ```python
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+{
+    "logits": ...,       # (B, num_classes)
+    "perm": ...,         # (L,), NS-PFS ordering of image + tabular tokens
+    "seq_scores": ...,   # (B, L), predicted sequencing scores
+    "beta": ...,         # (B, L), normalized target sequencing positions
+    "h_cls": ...,        # (B, d_model), OMT global representation
+    "h_pi": ...,         # (B, L, d_model), ordered data-token representations
 
-model.eval()
+    # Present when memory tokens are enabled
+    "h_mem": ...,        # (B, num_memory_tokens, d_model)
 
-with torch.no_grad():
-    out = model(X_tab_test, X_img_test)
-    preds = out["logits"].argmax(dim=1).cpu().numpy()
-    y_true = y_test.cpu().numpy()
+    # Returned when labels y are provided
+    "loss": ...,         # Total objective
+    "loss_ce": ...,      # Cross-entropy classification loss
+    "loss_fs": ...,      # Feature-sequencing consistency loss
+}
+```
+
+The training objective is:
+
+```text
+loss = loss_ce + lambda_fs * loss_fs
+```
+
+where `loss_ce` is the classification loss and `loss_fs` encourages consistency with the NS-PFS-derived feature sequence.
+
+---
+
+### Using Mixed Numerical and Categorical Tabular Features
+
+The examples above use only numerical tabular features for simplicity.
+
+iSyncTab also accepts tabular inputs as a dictionary:
+
+```python
+x_tab = {
+    "num": x_num,     # FloatTensor: (B, N_num)
+    "cat": x_cat,     # LongTensor:  (B, N_cat)
+}
+```
+
+For example:
+
+```python
+out = model(
+    x_tab,
+    x_img,
+    y=labels,
+)
+```
+
+When multiple tabular feature types are used, set:
+
+```python
+num_tab_features = N_num + N_cat
+```
+
+to the total number of tabular tokens supplied to iSyncTab.
+
+Text-style tabular inputs can also be supplied through the optional `"text"` field when appropriate.
+
+---
+
+### Binary Classification
+
+For binary classification, simply set:
+
+```python
+num_classes = 2
+```
+
+when initializing iSyncTab:
+
+```python
+model = iSyncTab(
+    num_tab_features=num_tab_features,
+    num_classes=2,
+
+    d_model=128,
+    linformer_depth=4,
+    linformer_heads=4,
+    linformer_k=32,
+    num_memory_tokens=1,
+
+    num_clusters=4,
+    metric="variance",
+    lambda_fs=0.1,
+
+    pretrained_resnet=False,
+    device=device,
+).to(device)
+```
+
+iSyncTab uses multiclass logits with cross-entropy loss, so binary classification is represented using two output classes.
+
+---
+
+### Classification Metrics
+
+Predictions are obtained from:
+
+```python
+preds = out["logits"].argmax(dim=1)
+```
+
+Standard classification metrics can then be computed with `scikit-learn`:
+
+```python
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+)
+
+y_true = y_test.cpu().numpy()
+y_pred = preds.cpu().numpy()
 
 metrics = {
-    "accuracy": accuracy_score(y_true, preds),
-    "macro_precision": precision_score(y_true, preds, average="macro", zero_division=0),
-    "macro_recall": recall_score(y_true, preds, average="macro", zero_division=0),
-    "macro_f1": f1_score(y_true, preds, average="macro", zero_division=0),
+    "accuracy": accuracy_score(
+        y_true,
+        y_pred,
+    ),
+    "macro_precision": precision_score(
+        y_true,
+        y_pred,
+        average="macro",
+        zero_division=0,
+    ),
+    "macro_recall": recall_score(
+        y_true,
+        y_pred,
+        average="macro",
+        zero_division=0,
+    ),
+    "macro_f1": f1_score(
+        y_true,
+        y_pred,
+        average="macro",
+        zero_division=0,
+    ),
 }
 
 print(metrics)
 ```
+
+---
+
+### Adapting iSyncTab to Your Own Dataset
+
+To apply iSyncTab to a new paired image-tabular dataset:
+
+1. Replace the synthetic `X_img`, `X_tab`, and `y` arrays with your own paired data.
+2. Encode the class labels as integers from `0` to `num_classes - 1`.
+3. Standardize numerical tabular features using statistics computed from the training split only.
+4. Encode categorical variables as integer IDs when categorical inputs are used.
+5. Set `num_tab_features` to the total number of tabular tokens.
+6. Set `num_classes` to the number of target classes.
+7. Use `pretrained_resnet=False` for complete training from scratch, or `pretrained_resnet=True` to initialize the image backbone using pretrained ResNet-50 weights.
+8. For a new dataset, run the **Optuna workflow** to select the iSyncTab, NS-PFS, OMT, and optimization hyperparameters before final training.
+9. Keep the test set separate from Optuna tuning and use it only for the final evaluation.
 
 ## 🤗 Trained HAM10000 Model Weights and Public Checkpoint
 
