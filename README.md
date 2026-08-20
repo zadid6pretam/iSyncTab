@@ -13,7 +13,7 @@
 ![Extension](https://img.shields.io/badge/Extension-Audio%20%2B%20Video-9cf)
 [![Conference](https://img.shields.io/badge/Conference-ECCV%202026-blue)](https://eccv.ecva.net/)
 ![Status](https://img.shields.io/badge/Status-Accepted-brightgreen)
-[![Paper](https://img.shields.io/badge/Paper-Published-success)](https://doi.org/10.1007/978-3-032-37035-8)
+[![Paper](https://img.shields.io/badge/Paper-In%20Press-success)](https://doi.org/10.1007/978-3-032-37035-8)
 
 <p align="center">
   <img src="iSyncTab_Architecture.png" alt="iSyncTab Architecture" width="1000">
@@ -101,8 +101,8 @@ The audio-video implementation is **dataset-independent** and can be used with p
   - NS-PFS feature sequencing and OMT-based training.
   - Model evaluation with displayed outputs.
   - A **generalized image-tabular example** using replaceable/dummy datasets to demonstrate how users can adapt iSyncTab to their own paired image-tabular data.
-  - Example code for loading pretrained **model weights**.
-  - Example code for restoring a complete **training checkpoint** and resuming or evaluating a trained model.
+  - Example code for loading the released HAM10000 **trained model weights**.
+  - Example code for loading the public HAM10000 **reproducibility checkpoint** for model restoration, evaluation, or further experimentation.
 
 This notebook is intended to serve as the primary quick-start and package-usage reference for users installing iSyncTab from PyPI.
 
@@ -127,23 +127,6 @@ iSyncTab was evaluated on **six image-tabular multimodal datasets** in the ECCV 
 The original iSyncTab framework focuses on **image-tabular multimodal learning**, while the audio-video experiment demonstrates that the proposed NS-PFS mechanism can also be applied to other heterogeneous multimodal feature streams.
 
 ---
-
-### Pretrained Model and Checkpoint
-
-The trained iSyncTab model weights and complete checkpoint for the **HAM10000** experiment will be released separately through the **Hugging Face Model Hub**.
-
-The GitHub repository focuses on source code, package implementation, experiment notebooks, and reproducibility resources, while larger trained model artifacts are hosted separately.
-
-The demo notebook includes examples showing how to:
-
-```python
-# Load model weights
-model.load_state_dict(torch.load("isynctab_ham10000_weights.pt"))
-
-# Load a complete checkpoint
-checkpoint = torch.load("isynctab_ham10000_checkpoint.pt")
-model.load_state_dict(checkpoint["model_state_dict"])
-```
 
 ### Main Dependencies
 
@@ -1564,7 +1547,7 @@ out = model(
 )
 ```
 
-When multiple tabular feature types are used, set:
+When numerical and categorical features are used, set:
 
 ```python
 num_tab_features = N_num + N_cat
@@ -1612,13 +1595,7 @@ iSyncTab uses multiclass logits with cross-entropy loss, so binary classificatio
 
 ### Classification Metrics
 
-Predictions are obtained from:
-
-```python
-preds = out["logits"].argmax(dim=1)
-```
-
-Standard classification metrics can then be computed with `scikit-learn`:
+During evaluation, collect predictions across the **entire test set** before computing classification metrics.
 
 ```python
 from sklearn.metrics import (
@@ -1628,8 +1605,34 @@ from sklearn.metrics import (
     f1_score,
 )
 
-y_true = y_test.cpu().numpy()
-y_pred = preds.cpu().numpy()
+model.eval()
+
+y_true = []
+y_pred = []
+
+with torch.no_grad():
+    for x_tab, x_img, y_batch in test_loader:
+        x_tab = x_tab.to(device)
+        x_img = x_img.to(device)
+        y_batch = y_batch.to(device)
+
+        out = model(
+            x_tab,
+            x_img,
+        )
+
+        preds = out["logits"].argmax(dim=1)
+
+        y_true.extend(
+            y_batch.cpu().numpy()
+        )
+
+        y_pred.extend(
+            preds.cpu().numpy()
+        )
+
+y_true = np.asarray(y_true)
+y_pred = np.asarray(y_pred)
 
 metrics = {
     "accuracy": accuracy_score(
@@ -1710,7 +1713,7 @@ Install the Hugging Face Hub client if needed:
 pip install huggingface_hub
 ```
 
-Then download the trained weights, public checkpoint, and public configuration:
+Then download the trained weights, public checkpoint, public configuration, and release metadata:
 
 ```python
 from huggingface_hub import hf_hub_download
@@ -1924,12 +1927,475 @@ The provided **`iSyncTab_Demo_PIP_Install.ipynb`** notebook serves as the main p
 
 > **Note:** The Hugging Face release provides trained model artifacts and reproducibility information. Stored experimental performance results are intentionally excluded so users can independently reproduce and evaluate the HAM10000 experiment.
 
+---
+
+## Example: Audio-Video Learning with `iSyncTab_AV`
+
+iSyncTab also includes **`iSyncTab_AV`**, a general audio-video extension that applies the same **NS-PFS + OMT** framework to paired audio and video representations.
+
+Unlike the image-tabular `iSyncTab` model, `iSyncTab_AV` expects **precomputed token-level features** from the two modalities. This allows users to choose their own upstream audio and video encoders.
+
+For example:
+
+- audio tokens may come from an audio encoder, spectrogram model, or pretrained speech/audio representation model
+- video tokens may come from a CNN, Vision Transformer, video transformer, or other visual feature extractor
+
+The resulting token sequences are projected into a shared embedding space, sequenced using **NS-PFS**, and processed by the **OMT** backbone.
+
+### Minimal Audio-Video Training Example
+
+```python
+import random
+import numpy as np
+import torch
+
+from torch.utils.data import DataLoader, TensorDataset
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import (
+    accuracy_score,
+    precision_score,
+    recall_score,
+    f1_score,
+)
+
+from isynctab import iSyncTab_AV
+
+
+# ============================================================
+# Reproducibility
+# ============================================================
+
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+
+
+set_seed(42)
+
+
+# ============================================================
+# Device
+# ============================================================
+
+device = torch.device(
+    "cuda" if torch.cuda.is_available() else "cpu"
+)
+
+print("Device:", device)
+
+
+# ============================================================
+# Dummy precomputed audio-video token features
+# Replace these with features from your own encoders
+# ============================================================
+
+num_samples = 240
+num_classes = 4
+
+# Number of tokens produced by each upstream encoder
+audio_len = 32
+video_len = 16
+
+# Feature dimension of each token before iSyncTab_AV projection
+audio_dim = 64
+video_dim = 2048
+
+
+rng = np.random.default_rng(42)
+
+X_audio = rng.normal(
+    size=(
+        num_samples,
+        audio_len,
+        audio_dim,
+    )
+).astype(np.float32)
+
+X_video = rng.normal(
+    size=(
+        num_samples,
+        video_len,
+        video_dim,
+    )
+).astype(np.float32)
+
+y = rng.integers(
+    low=0,
+    high=num_classes,
+    size=num_samples,
+    dtype=np.int64,
+)
+
+
+# ============================================================
+# Train / test split
+# ============================================================
+
+indices = np.arange(num_samples)
+
+train_idx, test_idx = train_test_split(
+    indices,
+    test_size=0.20,
+    random_state=42,
+    stratify=y,
+)
+
+
+train_dataset = TensorDataset(
+    torch.tensor(
+        X_audio[train_idx],
+        dtype=torch.float32,
+    ),
+    torch.tensor(
+        X_video[train_idx],
+        dtype=torch.float32,
+    ),
+    torch.tensor(
+        y[train_idx],
+        dtype=torch.long,
+    ),
+)
+
+test_dataset = TensorDataset(
+    torch.tensor(
+        X_audio[test_idx],
+        dtype=torch.float32,
+    ),
+    torch.tensor(
+        X_video[test_idx],
+        dtype=torch.float32,
+    ),
+    torch.tensor(
+        y[test_idx],
+        dtype=torch.long,
+    ),
+)
+
+
+batch_size = 16
+
+train_loader = DataLoader(
+    train_dataset,
+    batch_size=batch_size,
+    shuffle=True,
+)
+
+test_loader = DataLoader(
+    test_dataset,
+    batch_size=batch_size,
+    shuffle=False,
+)
+
+
+# ============================================================
+# Initialize iSyncTab_AV
+# ============================================================
+
+model = iSyncTab_AV(
+    num_classes=num_classes,
+
+    # Input token dimensions
+    audio_dim=audio_dim,
+    video_dim=video_dim,
+
+    # Fixed token lengths
+    audio_len=audio_len,
+    video_len=video_len,
+
+    # Shared representation
+    d_model=256,
+
+    # NS-PFS
+    num_clusters=6,
+    metric="variance",
+    lambda_fs=0.1,
+
+    # OMT / Linformer
+    linformer_depth=4,
+    linformer_heads=8,
+    linformer_k=32,
+
+    # 0 reproduces the tested AV-style mean-pooling setup
+    num_memory_tokens=0,
+
+    device=device,
+).to(device)
+
+
+optimizer = torch.optim.AdamW(
+    model.parameters(),
+    lr=1e-4,
+    weight_decay=1e-4,
+)
+
+
+# ============================================================
+# Train
+# ============================================================
+
+epochs = 5
+
+for epoch in range(epochs):
+
+    model.train()
+
+    total_loss = 0.0
+    total_correct = 0
+    total_samples = 0
+
+    for audio, video, labels in train_loader:
+
+        audio = audio.to(device)
+        video = video.to(device)
+        labels = labels.to(device)
+
+        optimizer.zero_grad(
+            set_to_none=True
+        )
+
+        out = model(
+            audio,
+            video,
+            y=labels,
+        )
+
+        loss = out["loss"]
+
+        loss.backward()
+        optimizer.step()
+
+        batch_size_now = labels.size(0)
+
+        total_loss += (
+            loss.detach().item()
+            * batch_size_now
+        )
+
+        preds = out["logits"].argmax(
+            dim=1
+        )
+
+        total_correct += (
+            preds == labels
+        ).sum().item()
+
+        total_samples += batch_size_now
+
+    print(
+        f"Epoch {epoch + 1:02d}/{epochs} | "
+        f"Loss: {total_loss / total_samples:.4f} | "
+        f"Accuracy: {total_correct / total_samples:.4f}"
+    )
+
+
+# ============================================================
+# Evaluate
+# ============================================================
+
+model.eval()
+
+y_true = []
+y_pred = []
+
+with torch.no_grad():
+
+    for audio, video, labels in test_loader:
+
+        audio = audio.to(device)
+        video = video.to(device)
+
+        out = model(
+            audio,
+            video,
+        )
+
+        preds = out["logits"].argmax(
+            dim=1
+        )
+
+        y_true.extend(
+            labels.numpy()
+        )
+
+        y_pred.extend(
+            preds.cpu().numpy()
+        )
+
+
+metrics = {
+    "accuracy": accuracy_score(
+        y_true,
+        y_pred,
+    ),
+    "macro_precision": precision_score(
+        y_true,
+        y_pred,
+        average="macro",
+        zero_division=0,
+    ),
+    "macro_recall": recall_score(
+        y_true,
+        y_pred,
+        average="macro",
+        zero_division=0,
+    ),
+    "macro_f1": f1_score(
+        y_true,
+        y_pred,
+        average="macro",
+        zero_division=0,
+    ),
+}
+
+print("\nTest Metrics")
+
+for name, value in metrics.items():
+    print(f"{name}: {value:.4f}")
+
+
+# ============================================================
+# Inspect NS-PFS / OMT outputs
+# ============================================================
+
+audio, video, _ = next(
+    iter(test_loader)
+)
+
+audio = audio.to(device)
+video = video.to(device)
+
+with torch.no_grad():
+
+    out = model(
+        audio,
+        video,
+    )
+
+print("\nOutput Shapes")
+print("Logits:", out["logits"].shape)
+print("NS-PFS permutation:", out["perm"].shape)
+print("Sequencing scores:", out["seq_scores"].shape)
+print("Sequencing target:", out["beta"].shape)
+print("OMT representation:", out["h_cls"].shape)
+print(
+    "Ordered token representations:",
+    out["h_pi"].shape,
+)
+```
+
+### Input Format
+
+`iSyncTab_AV` expects:
+
+```text
+Audio:  (B, audio_len, audio_dim)
+Video:  (B, video_len, video_dim)
+Labels: (B,)
+```
+
+For example:
+
+```python
+audio = torch.randn(
+    8,
+    32,
+    64,
+)
+
+video = torch.randn(
+    8,
+    16,
+    2048,
+)
+
+labels = torch.randint(
+    0,
+    4,
+    (8,),
+)
+```
+
+The configured token lengths must match the supplied inputs:
+
+```python
+model = iSyncTab_AV(
+    num_classes=4,
+    audio_dim=64,
+    video_dim=2048,
+    audio_len=32,
+    video_len=16,
+)
+```
+
+### `iSyncTab_AV` Output Dictionary
+
+The output structure follows the same design as the image-tabular iSyncTab model:
+
+```python
+{
+    "logits": ...,       # (B, num_classes)
+    "perm": ...,         # (audio_len + video_len,)
+    "seq_scores": ...,   # (B, audio_len + video_len)
+    "beta": ...,         # (B, audio_len + video_len)
+    "h_cls": ...,        # (B, d_model)
+    "h_pi": ...,         # Ordered audio-video token representations
+
+    # Present when num_memory_tokens > 0
+    "h_mem": ...,
+
+    # Returned when labels are provided
+    "loss": ...,
+    "loss_ce": ...,
+    "loss_fs": ...,
+}
+```
+
+The same training objective is used:
+
+```text
+loss = loss_ce + lambda_fs * loss_fs
+```
+
+### Using Your Own Audio and Video Encoders
+
+`iSyncTab_AV` does not impose a particular audio or video feature extractor.
+
+Users can first obtain token representations using their preferred encoders:
+
+```python
+audio_tokens = audio_encoder(audio_input)
+video_tokens = video_encoder(video_input)
+
+out = model(
+    audio_tokens,
+    video_tokens,
+    y=labels,
+)
+```
+
+The only requirements are that the tensors have the expected form:
+
+```text
+audio_tokens: (B, audio_len, audio_dim)
+video_tokens: (B, video_len, video_dim)
+```
+
+and that `audio_len`, `video_len`, `audio_dim`, and `video_dim` used when initializing `iSyncTab_AV` match the produced token representations.
+
+> **Note:** The audio-video extension demonstrates that the iSyncTab sequencing mechanism is not restricted to image-tabular learning. NS-PFS can operate on two tokenized modalities and learn a synchronized cross-modal ordering before OMT-based fusion.
 
 ## Related Work and Project Context
 
-iStructTab is part of my PhD research on structured tabular and multimodal deep learning, with a focus on feature ordering/sequencing, and representation learning for heterogeneous data. The project extends my broader research direction on order-aware tabular modeling by studying how image and tabular representations can be fused through a structured feature sequence rather than treated as an unordered concatenated vector.
+iSyncTab is part of my broader research on feature ordering and sequencing for tabular and multimodal deep learning, with a focus on structure-aware representation learning for heterogeneous data.
 
-In this work, iStructTab formulates multimodal image-tabular fusion as a feature sequencing problem inspired by the Column Permutation Problem (CPP). It introduces Graph-Enhanced Descriptor Sequencing (GEDS) to construct a data-driven feature order and uses an Order-Aware Efficient Transformer with Memory Augmentation (OEMT) to preserve and exploit that order during prediction. This connects directly to my dissertation research themes on feature ordering, structure-aware representation learning, and efficient deep learning for tabular and multimodal data.
+In this work, iSyncTab extends feature sequencing to multimodal image-tabular learning through **Neural Synchrony-guided Paired Feature Sequencing (NS-PFS)** and an **Order-aware Memory-augmented Transformer (OMT)**, connecting directly to my broader research direction on feature ordering, structured representation learning, and multimodal integration.
 
 ### GOTabPFN (ICML 2026)
 
@@ -1937,7 +2403,7 @@ Our recent ICML 2026 Regular main conference paper on feature ordering and compr
 - **GOTabPFN: From Feature Ordering to Compact Tokenization for Tabular Foundation Models on High-Dimensional Data**
 
 - GitHub: https://github.com/zadid6pretam/GOTabPFN
-- - **Find it on ICML portal:** https://icml.cc/virtual/2026/poster/62523
+- **Find it on ICML portal:** https://icml.cc/virtual/2026/poster/62523
 - **Project Webpage:** https://www.zadidhabib.com/gotabpfn.html
 - **OpenReview:** https://openreview.net/forum?id=fpqfV3lCIB
 - **Hugging Face Space:** [ZeroGPU Live Demo](https://zadid6pretam-GOTabPFN.hf.space) *(recommended; faster GPU-backed testing)* | [CPU Backup Demo](https://zadid6pretam-GOTabPFN-CPU.hf.space) *(use if ZeroGPU is unavailable)* | [ZeroGPU Space Repository](https://huggingface.co/spaces/zadid6pretam/GOTabPFN) | [CPU Backup Space Repository](https://huggingface.co/spaces/zadid6pretam/GOTabPFN_CPU)
@@ -1953,19 +2419,21 @@ Our recent ICML 2026 Regular main conference paper on feature ordering and compr
 
 ### iSyncTab (ECCV 2026)
 
-Our neural synchrony-based cross-modal feature sequencing framework for multimodal learning with image and tabular data. iSyncTab addresses the image–tabular integration problem by aligning and sequencing cross-modal feature groups before structured multimodal representation learning.
+Our neural synchrony-based cross-modal feature sequencing framework for multimodal learning with image and tabular data. iSyncTab addresses the image-tabular integration problem by aligning and sequencing cross-modal feature groups before structured multimodal representation learning.
 
-- **iSyncTab: Learning Cross-Modal Feature Sequencing for Image-Tabular Data via Neural Synchrony**  
+- **iSyncTab: Learning Cross-Modal Feature Sequencing for Image-Tabular Data via Neural Synchrony**
 - Accepted at the European Conference on Computer Vision (ECCV 2026)
-- GitHub: https://github.com/zadid6pretam/iSyncTab (will be made public soon)
-- Project Page: https://www.zadidhabib.com/isynctab.html (will be made public soon)
+- GitHub: https://github.com/zadid6pretam/iSyncTab
+- Project Page: https://www.zadidhabib.com/isynctab.html
+- Paper: https://doi.org/10.1007/978-3-032-37035-8 (In Press)
 
 ```bibtex
 @inproceedings{habib2026isynctab,
   title     = {iSyncTab: Learning Cross-Modal Feature Sequencing for Image-Tabular Data via Neural Synchrony},
-  author    = {Habib, Al Zadid Sultan Bin and Ahamed, Md Younus and Gyawali, Prashnna and Doretto, Gianfranco and Adjeroh, Donald A.},
+  author    = {Habib, Al Zadid Sultan Bin and Ahamed, Md Younus and Gyawali, Prashnna Kumar and Doretto, Gianfranco and Adjeroh, Donald A.},
   booktitle = {Proceedings of the European Conference on Computer Vision},
-  year      = {2026}
+  year      = {2026},
+  doi       = {10.1007/978-3-032-37035-8}
 }
 ```
 - If you are interested in cross-modal feature sequencing, neural synchrony-guided image–tabular integration, and order-aware multimodal representation learning, please refer to the iSyncTab repository, project page, and paper.
@@ -2013,7 +2481,7 @@ Our structured feature sequencing framework for multimodal learning with image a
 ```
 - If you are interested in structured feature sequencing, multimodal fusion of image and tabular data (the integration problem), and feature order-aware tabular representation learning, please also refer to the iStructTab repository and paper.
 
-## DynaTab (AAAI 2026 NeurAI Workshop)
+### DynaTab (AAAI 2026 NeurAI Workshop)
 
 One of our older works on learned feature ordering for high-dimensional tabular data:
 
@@ -2090,26 +2558,6 @@ This repository corresponds to our separate collaborative work on tabular remote
 ## Contact
 
 For any questions, issues, or suggestions related to this repository, please feel free to contact us or open an issue on GitHub.
-
-
-## Repository Structure
-
-A typical layout is:
-
-```text
-.
-├── istructtab/
-│   ├── __init__.py
-│   └── iStructTab.py                    # Core iStructTab implementation: GEDS + OEMT
-├── HAM_iStructTab.ipynb                 # Full HAM10000 experiment with Optuna tuning and diagnostics
-├── iStructTab_PIP_Install_Check.ipynb   # Minimal pip-install/import/API check notebook
-├── iStructTab_Architecture.png          # High-level architecture diagram
-├── requirements.txt                     # Runtime dependencies
-├── pyproject.toml                       # Build system and PyPI metadata
-├── setup.cfg                            # Optional setuptools configuration
-├── LICENSE                              # MIT license
-├── .gitignore                           # Git ignore rules
-└── README.md                            # Project overview, installation, usage, and citation
 
 
 
