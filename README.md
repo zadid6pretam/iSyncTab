@@ -1572,6 +1572,7 @@ num_tab_features = N_num + N_cat + N_text
 ```
 
 `num_tab_features` should always equal the total number of tabular tokens supplied to iSyncTab.
+
 ---
 
 ### Binary Classification
