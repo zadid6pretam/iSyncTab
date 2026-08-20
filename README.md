@@ -481,133 +481,218 @@ metrics = {
 print(metrics)
 ```
 
-## Pretrained HAM10000 Model Weights and Checkpoint
+## 🤗 Trained HAM10000 Model Weights and Public Checkpoint
 
-The trained **iSyncTab model weights and full training checkpoint for HAM10000** are hosted separately on the **Hugging Face Model Hub** to keep the GitHub and PyPI distributions lightweight.
+The official **iSyncTab HAM10000 trained weights and public reproducibility checkpoint** are hosted separately on the **Hugging Face Model Hub** to keep the GitHub repository and PyPI package lightweight.
 
-The release contains:
+[![Hugging Face](https://img.shields.io/badge/🤗%20Hugging%20Face-iSyncTab--HAM10000-FFD21E?style=for-the-badge)](https://huggingface.co/zadid6pretam/iSyncTab-HAM10000)
 
-```text
-isynctab_ham10000_weights.pt
-isynctab_ham10000_checkpoint.pt
-```
+### Available Release Files
 
-- **`isynctab_ham10000_weights.pt`** - Trained iSyncTab model parameters for inference and model loading.
-- **`isynctab_ham10000_checkpoint.pt`** - Full HAM10000 training checkpoint containing the model state and additional training information required to restore or resume the experiment.
+| File | Description |
+|---|---|
+| `isynctab_ham10000_full_tuning_weights_only.pt` | Final trained PyTorch model weights |
+| `isynctab_ham10000_full_tuning_checkpoint_public.pt` | Sanitized public checkpoint for model restoration and reproducibility |
+| `config_full_tuning_public.json` | Public HAM10000 model, preprocessing, and experiment configuration |
+| `isynctab_ham10000_release_metadata.json` | Release metadata, artifact information, and SHA-256 hashes |
 
-> **Hugging Face:** The official iSyncTab-HAM10000 model repository link will be added here after release.
+The public checkpoint contains the model state, optimizer state, selected hyperparameters, NS-PFS configuration, feature definitions, categorical vocabularies, class mappings, preprocessing information, reproducible dataset splits, and random seeds.
 
-### Download the HAM10000 Model Files
+Stored training history, validation objectives, test accuracy, test loss, and Optuna trial-result history are intentionally excluded from the public release. Users can independently train and evaluate iSyncTab using the released source code, configuration, and reproducible dataset splits.
 
-The pretrained model weights and checkpoint can be downloaded from the iSyncTab-HAM10000 repository on the Hugging Face Model Hub.
+### Hugging Face Repository
 
-To download them programmatically, first install the Hugging Face Hub client:
+The official release is available at:
+
+**https://huggingface.co/zadid6pretam/iSyncTab-HAM10000**
+
+---
+
+### Download the HAM10000 Release Files
+
+Install the Hugging Face Hub client if needed:
 
 ```bash
 pip install huggingface_hub
 ```
 
-Then use:
+Then download the trained weights, public checkpoint, and public configuration:
 
 ```python
 from huggingface_hub import hf_hub_download
 
+REPO_ID = "zadid6pretam/iSyncTab-HAM10000"
+
 weights_path = hf_hub_download(
-    repo_id="YOUR_HUGGINGFACE_USERNAME/iSyncTab-HAM10000",
-    filename="isynctab_ham10000_weights.pt",
+    repo_id=REPO_ID,
+    filename="isynctab_ham10000_full_tuning_weights_only.pt",
 )
 
 checkpoint_path = hf_hub_download(
-    repo_id="YOUR_HUGGINGFACE_USERNAME/iSyncTab-HAM10000",
-    filename="isynctab_ham10000_checkpoint.pt",
+    repo_id=REPO_ID,
+    filename="isynctab_ham10000_full_tuning_checkpoint_public.pt",
 )
 
-print("Model weights:", weights_path)
+config_path = hf_hub_download(
+    repo_id=REPO_ID,
+    filename="config_full_tuning_public.json",
+)
+
+metadata_path = hf_hub_download(
+    repo_id=REPO_ID,
+    filename="isynctab_ham10000_release_metadata.json",
+)
+
+print("Weights:", weights_path)
 print("Checkpoint:", checkpoint_path)
+print("Configuration:", config_path)
+print("Release metadata:", metadata_path)
 ```
 
-Replace:
-
-```text
-YOUR_HUGGINGFACE_USERNAME/iSyncTab-HAM10000
-```
-
-with the official Hugging Face repository ID after release.
+---
 
 ### Load the HAM10000 Model Weights
 
-The model-weight file contains the trained iSyncTab parameters and can be loaded using PyTorch.
+The weights-only artifact contains the final trained iSyncTab PyTorch `state_dict`.
 
 ```python
 import torch
-from isynctab import iSyncTab
 
-model = iSyncTab(
-    num_tab_features=YOUR_NUM_TAB_FEATURES,
-    num_classes=YOUR_NUM_CLASSES,
-    # Use the HAM10000 model configuration here
-)
-
-state_dict = torch.load(
-    "isynctab_ham10000_weights.pt",
+weights = torch.load(
+    weights_path,
     map_location="cpu",
+    weights_only=True,
 )
 
-model.load_state_dict(state_dict)
+print(type(weights))
+print("Number of state-dict entries:", len(weights))
+```
+
+Initialize `iSyncTab` using the HAM10000 model configuration provided in:
+
+```text
+config_full_tuning_public.json
+```
+
+Then restore the trained parameters:
+
+```python
+model.load_state_dict(weights)
 model.eval()
 ```
 
-If the model is being used on GPU:
+For GPU inference:
 
 ```python
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+device = torch.device(
+    "cuda" if torch.cuda.is_available() else "cpu"
+)
+
 model = model.to(device)
 ```
 
-### Load the Full HAM10000 Checkpoint
+---
 
-The complete checkpoint can be used to restore the trained model and, when the corresponding optimizer state and training metadata are available, resume training.
+### Load the Public HAM10000 Checkpoint
+
+The public checkpoint can be used to restore the trained model and reproduce the released experiment setup.
 
 ```python
 import torch
-from isynctab import iSyncTab
 
 checkpoint = torch.load(
-    "isynctab_ham10000_checkpoint.pt",
+    checkpoint_path,
     map_location="cpu",
+    weights_only=False,
 )
 
-model = iSyncTab(
-    num_tab_features=YOUR_NUM_TAB_FEATURES,
-    num_classes=YOUR_NUM_CLASSES,
-    # Use the HAM10000 model configuration here
+print(checkpoint.keys())
+```
+
+Restore the trained model state:
+
+```python
+model.load_state_dict(
+    checkpoint["model_state_dict"]
 )
 
-model.load_state_dict(checkpoint["model_state_dict"])
 model.eval()
 ```
 
-If optimizer information is included in the checkpoint, it can also be restored:
+The optimizer state is also included and can be restored after creating the corresponding optimizer:
 
 ```python
-optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+optimizer.load_state_dict(
+    checkpoint["optimizer_state_dict"]
+)
 ```
 
-Additional information such as the saved epoch, validation score, hyperparameters, or other training metadata can also be retrieved if included in the released checkpoint:
+The public checkpoint contains:
 
-```python
-epoch = checkpoint.get("epoch")
-best_val_score = checkpoint.get("best_val_score")
-config = checkpoint.get("config")
-
-print("Epoch:", epoch)
-print("Best validation score:", best_val_score)
-print("Configuration:", config)
+```text
+model_state_dict
+optimizer_state_dict
+best_params
+fixed_nspfs_pair_order
+num_tab_features
+num_classes
+classes
+class_to_id
+id_to_class
+num_cols
+cat_cols
+cat_vocabs
+text_cols
+image_size
+image_mean
+image_std
+N
+n_train
+n_val
+n_test
+train_indices
+val_indices
+test_indices
+seed_split
+seed_final
+n_trials
+epochs_tune
+final_epochs
+penalize_lambda
+study_name
 ```
+
+---
+
+### Verify File Integrity
+
+The official PyTorch artifacts were verified locally and again after downloading them from the Hugging Face Model Hub.
+
+#### Model Weights
+
+```text
+File:
+isynctab_ham10000_full_tuning_weights_only.pt
+
+SHA-256:
+fd60b74f9337ade02354b25a3211fc85bef86d011ee98d7113ad485c5f62e267
+```
+
+#### Public Checkpoint
+
+```text
+File:
+isynctab_ham10000_full_tuning_checkpoint_public.pt
+
+SHA-256:
+d750a7b9f4b1e052fe84e6424b87f045c65db4947a4259c1fc4cc19c9c3b12af
+```
+
+---
 
 ### HAM10000 Training Data
 
-The released checkpoint was trained on the **HAM10000** skin-lesion dataset using the Kaggle distribution:
+The released model artifacts were trained using the Kaggle distribution of the **HAM10000** skin-lesion dataset:
 
 **Skin Cancer MNIST: HAM10000**  
 K. Scott Mader  
@@ -617,25 +702,33 @@ The original HAM10000 dataset is described in:
 
 > Tschandl, P., Rosendahl, C., and Kittler, H.  
 > *The HAM10000 Dataset, A Large Collection of Multi-Source Dermatoscopic Images of Common Pigmented Skin Lesions.*  
-> Scientific Data, 2018.
+> Scientific Data, 2018.  
+> https://doi.org/10.1038/sdata.2018.161
 
-The HAM10000 images and metadata are **not redistributed** through the iSyncTab GitHub repository, PyPI package, or Hugging Face model repository.
+The HAM10000 images, metadata tables, and other original dataset files are **not redistributed** through the iSyncTab GitHub repository, PyPI package, or Hugging Face model repository.
+
+Users should obtain HAM10000 separately from the original distribution source and comply with the applicable dataset license and terms.
+
+---
 
 ### Demo Notebook
 
-The provided **`iSyncTab_Demo_PIP_Install.ipynb`** notebook demonstrates:
+The provided **`iSyncTab_Demo_PIP_Install.ipynb`** notebook serves as the main package and model-usage demonstration. It includes:
 
-- Installation of iSyncTab using `pip install isynctab`.
-- Import and initialization of the iSyncTab package.
-- HAM10000 preprocessing and model setup.
-- Optuna-based hyperparameter tuning.
-- NS-PFS feature sequencing.
-- OMT/Linformer-based multimodal training.
-- Evaluation with displayed outputs.
-- A generalized image-tabular example where users can replace the dummy inputs with their own paired datasets.
-- Loading the released HAM10000 model weights.
-- Loading the full HAM10000 checkpoint.
-- Restoring a trained iSyncTab model for inference or further experimentation.
+- installation using `pip install isynctab`
+- import and initialization of the iSyncTab package
+- HAM10000 preprocessing and model setup
+- Optuna-based hyperparameter tuning
+- NS-PFS feature sequencing
+- OMT/Linformer-based multimodal training
+- evaluation with displayed outputs
+- a generalized image-tabular example using replaceable datasets
+- downloading the official HAM10000 artifacts from Hugging Face
+- loading the trained HAM10000 weights
+- loading the public HAM10000 checkpoint
+- restoring a trained iSyncTab model for inference and further experimentation
+
+> **Note:** The Hugging Face release provides trained model artifacts and reproducibility information. Stored experimental performance results are intentionally excluded so users can independently reproduce and evaluate the HAM10000 experiment.
 
 
 ## Related Work and Project Context
