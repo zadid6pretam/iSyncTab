@@ -1,5 +1,6 @@
 # iSyncTab: Learning Cross-Modal Feature Sequencing for Image-Tabular Data via Neural Synchrony (ECCV 2026)
 
+[![ECCV 2026](https://img.shields.io/badge/ECCV%202026-iSyncTab-blue)](https://eccv.ecva.net/virtual/2026/poster/5442)
 ![Python](https://img.shields.io/badge/Python-3.9%2B-blue)
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Task](https://img.shields.io/badge/Task-Multimodal%20Image--Tabular%20Learning-orange)
