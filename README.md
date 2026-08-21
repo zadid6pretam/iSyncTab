@@ -2420,7 +2420,7 @@ In this work, iSyncTab extends feature sequencing to multimodal image-tabular le
 Our recent ICML 2026 Regular main conference paper on feature ordering and compression for tabular foundation models for high-dimensional low-sample-size tabular data:
 - **GOTabPFN: From Feature Ordering to Compact Tokenization for Tabular Foundation Models on High-Dimensional Data**
 
-- GitHub: https://github.com/zadid6pretam/GOTabPFN
+- **GitHub:** https://github.com/zadid6pretam/GOTabPFN
 - **Find it on ICML portal:** https://icml.cc/virtual/2026/poster/62523
 - **Project Webpage:** https://www.zadidhabib.com/gotabpfn.html
 - **OpenReview:** https://openreview.net/forum?id=fpqfV3lCIB
