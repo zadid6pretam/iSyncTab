@@ -14,7 +14,7 @@
 ![Extension](https://img.shields.io/badge/Extension-Audio%20%2B%20Video-9cf)
 [![Conference](https://img.shields.io/badge/Conference-ECCV%202026-blue)](https://eccv.ecva.net/)
 ![Status](https://img.shields.io/badge/Status-Accepted-brightgreen)
-[![Paper](https://img.shields.io/badge/Paper-In%20Press-success)](https://doi.org/10.1007/978-3-032-37035-8)
+[![Paper](https://img.shields.io/badge/Paper-Published-success)](https://link.springer.com/chapter/10.1007/978-3-032-37035-8_19)
 
 <p align="center">
   <img src="iSyncTab_Architecture.png" alt="iSyncTab Architecture" width="1000">
@@ -43,10 +43,10 @@ BibTeX:
   author    = {Habib, Al Zadid Sultan Bin and Ahamed, Md Younus and Gyawali, Prashnna Kumar and Doretto, Gianfranco and Adjeroh, Donald A.},
   booktitle = {Proceedings of the European Conference on Computer Vision},
   year      = {2026},
-  doi       = {10.1007/978-3-032-37035-8}
+  doi       = {10.1007/978-3-032-37035-8_19}
 }
 ```
-- Paper: https://link.springer.com/chapter/10.1007/978-3-032-37035-8
+- Paper: https://link.springer.com/chapter/10.1007/978-3-032-37035-8_19
 - ECCV Page: https://eccv.ecva.net/virtual/2026/poster/5442
 
 ## Files and Repository Structure
