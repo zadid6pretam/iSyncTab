@@ -162,6 +162,7 @@ tqdm>=4.66
 - **`.gitignore`** - Git ignore rules for Python cache files, Jupyter temporary files, local datasets, checkpoints, model weights, experiment outputs, and other generated artifacts.
 - **`pyproject.toml`** - Modern Python build-system configuration and package metadata used for installation and PyPI distribution.
 - **`setup.cfg`** - Setuptools package configuration containing package metadata, dependencies, classifiers, project links, and package-discovery settings.
+- **`estimator.py`** - Provides a scikit-learn-style fit(), predict(), and predict_proba() interface for iSyncTab image-tabular classification.
 
 ### Repository Layout
 
