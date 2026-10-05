@@ -259,7 +259,6 @@ pip install isynctab
 ```
 - After installation, the main image-tabular and audio-video models can be imported as:
 
-## Scikit-learn-style Estimator API
 ```python
 from isynctab import iSyncTab, iSyncTab_AV
 ```
@@ -268,7 +267,7 @@ from isynctab import iSyncTab, iSyncTab_AV
 ```python
 from isynctab import iSyncTabAV
 ```
-
+## Scikit-learn-style Estimator API
 ```python
 from isynctab import iSyncTabClassifier
 
