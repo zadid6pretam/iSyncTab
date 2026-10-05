@@ -259,6 +259,7 @@ pip install isynctab
 ```
 - After installation, the main image-tabular and audio-video models can be imported as:
 
+## Scikit-learn-style Estimator API
 ```python
 from isynctab import iSyncTab, iSyncTab_AV
 ```
@@ -266,6 +267,29 @@ from isynctab import iSyncTab, iSyncTab_AV
 
 ```python
 from isynctab import iSyncTabAV
+```
+
+```python
+from isynctab import iSyncTabClassifier
+
+clf = iSyncTabClassifier(
+    epochs=20,
+    batch_size=16,
+    device="cuda",
+)
+
+clf.fit(
+    (X_tab_train, X_img_train),
+    y_train,
+)
+
+y_pred = clf.predict(
+    (X_tab_test, X_img_test)
+)
+
+y_proba = clf.predict_proba(
+    (X_tab_test, X_img_test)
+)
 ```
 
 ## Example Usage
