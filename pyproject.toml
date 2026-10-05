@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isynctab"
-version = "0.1.0"
+version = "0.1.1"
 description = "iSyncTab: Learning Cross-Modal Feature Sequencing for Multimodal Data via Neural Synchrony"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -66,7 +66,7 @@ dependencies = [
 Homepage = "https://www.zadidhabib.com/isynctab.html"
 Source = "https://github.com/zadid6pretam/iSyncTab"
 Issues = "https://github.com/zadid6pretam/iSyncTab/issues"
-Paper = "https://doi.org/10.1007/978-3-032-37035-8"
+Paper = "https://doi.org/10.1007/978-3-032-37035-8_19"
 Conference = "https://eccv.ecva.net"
 
 [tool.setuptools.packages.find]
