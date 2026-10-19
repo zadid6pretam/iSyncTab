@@ -14,7 +14,7 @@
 ![Extension](https://img.shields.io/badge/Extension-Audio%20%2B%20Video-9cf)
 [![Conference](https://img.shields.io/badge/Conference-ECCV%202026-blue)](https://eccv.ecva.net/)
 ![Status](https://img.shields.io/badge/Status-Accepted-brightgreen)
-[![Springer](https://img.shields.io/badge/Paper-Published-success)](https://link.springer.com/chapter/10.1007/978-3-032-37035-8_19)
+[![Paper](https://img.shields.io/badge/Paper-Published-success)](https://link.springer.com/chapter/10.1007/978-3-032-37035-8_19)
 [![ECCV 2026 Paper](https://img.shields.io/badge/ECCV_2026-Paper-blue)](https://media.eventhosts.cc/Conferences/ECCV2026/pdfs/10640.pdf)
 [![Papers with Code: SOTA on RAVDESS](https://paperswithcode.co/api/v1/papers/119096/leaderboard-badge.svg?eval=36448&live=1)](https://paperswithcode.co/benchmark/ravdess?task=emotion-recognition&eval=36448)
 
